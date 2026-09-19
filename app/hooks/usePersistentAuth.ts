@@ -17,6 +17,22 @@ const DEFAULT_SESSION: UserSession = {
   positions: [],
 };
 
+async function readJson(res: Response) {
+  const text = await res.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      error: `Server returned an invalid response (${res.status}).`,
+    };
+  }
+}
+
 export function usePersistentAuth() {
   const [session, setSession] =
     useState<UserSession>(DEFAULT_SESSION);
@@ -26,10 +42,9 @@ export function usePersistentAuth() {
 
   useEffect(() => {
     try {
-      const saved =
-        localStorage.getItem(
-          "hexagonal_dex_session"
-        );
+      const saved = localStorage.getItem(
+        "hexagonal_dex_session"
+      );
 
       if (saved) {
         setSession(JSON.parse(saved));
@@ -64,12 +79,13 @@ export function usePersistentAuth() {
           "/api/auth?action=session",
           {
             cache: "no-store",
+            credentials: "include",
           }
         );
 
-        const data = await res.json();
+        const data = await readJson(res);
 
-        if (!data.authenticated) {
+        if (!res.ok || !data.authenticated) {
           setSession(DEFAULT_SESSION);
           return false;
         }
@@ -84,6 +100,7 @@ export function usePersistentAuth() {
 
         return true;
       } catch {
+        setSession(DEFAULT_SESSION);
         return false;
       }
     },
@@ -102,6 +119,7 @@ export function usePersistentAuth() {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify({
             email,
             code,
@@ -109,12 +127,12 @@ export function usePersistentAuth() {
         }
       );
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(
           data.error ||
-            "Access code tidak valid."
+            "Invalid access code."
         );
       }
 
@@ -139,6 +157,7 @@ export function usePersistentAuth() {
           "/api/auth?action=logout",
           {
             method: "POST",
+            credentials: "include",
           }
         );
       } catch {}
@@ -172,4 +191,4 @@ export function usePersistentAuth() {
     restoreServerSession,
     setSession,
   };
-}
+    }
