@@ -50,7 +50,7 @@ export default function TradePage() {
 
     try {
       if (mode === "waitlist") {
-        const res = await fetch("/api/auth?action=waitlist", {
+        const res = await fetch("/api/auth/waitlist", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
