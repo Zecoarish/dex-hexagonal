@@ -22,7 +22,7 @@ const AGGREGATOR_ABI = [
 
 const client = createPublicClient({
   chain: sepolia,
-  transport: http("https://rpc.ankr.com/eth_sepolia"),
+  transport: http("https://ethereum-sepolia-rpc.publicnode.com"),
 });
 
 export type PricePoint = { time: string; price: number };
