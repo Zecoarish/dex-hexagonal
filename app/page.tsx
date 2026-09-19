@@ -62,12 +62,12 @@ export default function TradePage() {
 
         if (!res.ok) {
           throw new Error(
-            data.error || "Gagal masuk waitlist."
+            data.error || "Failed to join the waitlist."
           );
         }
 
         setMessage(
-          "Request masuk. Tunggu approval admin."
+          "Request submitted. Please wait for admin approval."
         );
       } else {
         await loginWithCode(email, code);
@@ -76,7 +76,7 @@ export default function TradePage() {
       setMessage(
         err instanceof Error
           ? err.message
-          : "Terjadi kesalahan."
+          : "Something went wrong."
       );
     } finally {
       setBusy(false);
@@ -136,8 +136,8 @@ export default function TradePage() {
 
           <p className="text-sm text-zinc-400 mt-2 mb-6">
             {mode === "access"
-              ? "Masukkan email dan access code yang sudah di-approve."
-              : "Daftarkan email kamu. Admin akan review request sebelum akses diberikan."}
+              ? "Enter your email and approved access code."
+              : "Join the waitlist. Your request will be reviewed before access is granted."}
           </p>
 
           <form
@@ -178,7 +178,7 @@ export default function TradePage() {
               {busy
                 ? "Processing..."
                 : mode === "access"
-                ? "Enter App"
+                ? "Enter DEX"
                 : "Request Access"}
             </button>
 
@@ -194,4 +194,4 @@ export default function TradePage() {
       </div>
     </main>
   );
-      }
+              }
