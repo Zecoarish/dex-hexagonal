@@ -10,47 +10,124 @@ export default function TradePage() {
   const [pairsData, setPairsData] = useState<any[]>([]);
   const [selectedPair, setSelectedPair] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('All');
-  const [orderType, setOrderType] = useState<'Limit' | 'Market' | 'Trigger'>('Limit');
-  const [margin, setMargin] = useState<number>(100);
-  const [leverage, setLeverage] = useState<number>(35);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [accessCode, setAccessCode] = useState('');
 
+  // Meta Data 16 Koin
+  const pairsMeta = [
+    { symbol: 'BTC/USDT', name: 'Bitcoin', binanceSymbol: 'BTCUSDT', leverage: '100x', category: 'Top' },
+    { symbol: 'ETH/USDT', name: 'Ethereum', binanceSymbol: 'ETHUSDT', leverage: '50x', category: 'Top' },
+    { symbol: 'SOL/USDT', name: 'Solana', binanceSymbol: 'SOLUSDT', leverage: '20x', category: 'Layer 1' },
+    { symbol: 'LINK/USDT', name: 'Chainlink', binanceSymbol: 'LINKUSDT', leverage: '10x', category: 'DeFi' },
+    { symbol: 'DOGE/USDT', name: 'Dogecoin', binanceSymbol: 'DOGEUSDT', leverage: '10x', category: 'Meme' },
+    { symbol: 'XRP/USDT', name: 'XRP', binanceSymbol: 'XRPUSDT', leverage: '10x', category: 'Top' },
+    { symbol: 'BNB/USDT', name: 'BNB', binanceSymbol: 'BNBUSDT', leverage: '20x', category: 'Top' },
+    { symbol: 'ADA/USDT', name: 'Cardano', binanceSymbol: 'ADAUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'TRX/USDT', name: 'TRON', binanceSymbol: 'TRXUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'DOT/USDT', name: 'Polkadot', binanceSymbol: 'DOTUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'LTC/USDT', name: 'Litecoin', binanceSymbol: 'LTCUSDT', leverage: '10x', category: 'Top' },
+    { symbol: 'NEAR/USDT', name: 'NEAR Protocol', binanceSymbol: 'NEARUSDT', leverage: '5x', category: 'Layer 1' },
+    { symbol: 'SUI/USDT', name: 'Sui', binanceSymbol: 'SUIUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'ARB/USDT', name: 'Arbitrum', binanceSymbol: 'ARBUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'OP/USDT', name: 'Optimism', binanceSymbol: 'OPUSDT', leverage: '10x', category: 'Layer 1' },
+    { symbol: 'PEPE/USDT', name: 'Pepe', binanceSymbol: 'PEPEUSDT', leverage: '5x', category: 'Meme' }
+  ];
+
+  // Realtime WebSocket Connection
   useEffect(() => {
-    const fetchPrices = async () => {
+    const initialData = pairsMeta.map(p => ({
+      ...p,
+      price: 0,
+      change24h: 0,
+      volume24h: 0
+    }));
+    setPairsData(initialData);
+    setSelectedPair(initialData[0]);
+
+    const streamNames = pairsMeta.map(p => `${p.binanceSymbol.toLowerCase()}@ticker`).join('/');
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${streamNames}`);
+
+    ws.onmessage = (event) => {
       try {
-        const res = await fetch('/api/prices');
-        const json = await res.json();
-        if (json.success) {
-          setPairsData(json.data);
-          if (!selectedPair) setSelectedPair(json.data[0]);
+        const data = JSON.parse(event.data);
+        if (data && data.s) {
+          setPairsData(prev => prev.map(item => {
+            if (item.binanceSymbol === data.s) {
+              return {
+                ...item,
+                price: parseFloat(data.c),
+                change24h: parseFloat(data.P),
+                volume24h: parseFloat(data.q)
+              };
+            }
+            return item;
+          }));
         }
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error("WS Parse Error", err);
       }
     };
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 3000);
-    return () => clearInterval(interval);
-  }, [selectedPair]);
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) ws.close();
+    };
+  }, []);
 
   if (!session.isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#0B0F14] text-white flex flex-col items-center justify-center p-4">
-        <div className="bg-[#121820] border border-gray-800 rounded-2xl p-8 max-w-md w-full flex flex-col items-center text-center shadow-2xl">
+        <div className="bg-[#121820] border border-gray-800 rounded-2xl p-8 max-w-md w-full flex flex-col items-center shadow-2xl">
           <HexagonalLogo className="w-16 h-16 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Welcome to Hexagonal DEX</h1>
-          <p className="text-gray-400 text-sm mb-6">Trade Perpetual Contracts with Ultra-Low Latency and Decentralized Liquidity.</p>
-          <button
-            onClick={() => login()}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition duration-200"
-          >
-            Connect Wallet / Launch App
-          </button>
+          <h1 className="text-2xl font-bold mb-2">Join Waitlist / Access DEX</h1>
+          <p className="text-gray-400 text-sm mb-6 text-center">Masukkan Access Code waitlist kamu untuk masuk ke platform.</p>
+
+          <form onSubmit={(e) => { e.preventDefault(); login(); }} className="w-full flex flex-col gap-3">
+            <input 
+              type="text" 
+              placeholder="Enter Waitlist / Access Code" 
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              className="w-full bg-[#0B0F14] border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition duration-200 mt-2"
+            >
+              Enter App
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  const currentPrice = selectedPair?.price || 81230;
+  const activePair = pairsData.find(p => p.binanceSymbol === selectedPair?.binanceSymbol) || pairsData[0] || pairsMeta[0];
+  const currentPrice = activePair?.price || 0;
+
+  // Helper untuk format desimal koin kecil (seperti PEPE/DOGE)
+  const formatPrice = (p: number) => {
+    if (!p) return '0.00';
+    if (p < 0.01) return p.toFixed(6);
+    if (p < 1) return p.toFixed(4);
+    return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Dynamic Generator Orderbook Realtime
+  const spreadMultiplier = currentPrice < 1 ? 0.001 : 0.0003;
+  const asks = [4, 3, 2, 1].map((step, idx) => ({
+    price: currentPrice + (currentPrice * spreadMultiplier * step),
+    amount: (Math.sin(currentPrice + idx) * 0.5 + 0.6).toFixed(3)
+  }));
+  const bids = [1, 2, 3, 4].map((step, idx) => ({
+    price: currentPrice - (currentPrice * spreadMultiplier * step),
+    amount: (Math.cos(currentPrice + idx) * 0.5 + 0.6).toFixed(3)
+  }));
+
+  const filteredPairs = pairsData.filter(p => {
+    const matchesTab = activeTab === 'All' || p.category === activeTab;
+    const matchesSearch = p.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-[#0B0F14] text-gray-200 font-sans flex flex-col h-screen overflow-hidden">
@@ -61,7 +138,6 @@ export default function TradePage() {
             <button className="text-blue-400 border-b-2 border-blue-500 pb-4 pt-4">Trade</button>
             <button className="text-gray-400 hover:text-white">Portfolio</button>
             <button className="text-gray-400 hover:text-white">Earn</button>
-            <button className="text-gray-400 hover:text-white">More ▾</button>
           </nav>
         </div>
 
@@ -81,11 +157,14 @@ export default function TradePage() {
       </header>
 
       <div className="flex-1 grid grid-cols-12 gap-0.5 bg-[#1F2937] overflow-hidden">
-        <div className="col-span-2 bg-[#0B0F14] flex flex-col h-full border-r border-[#1F2937]">
+        {/* PANEL KIRI: PAIR LIST */}
+        <div className="col-span-3 bg-[#0B0F14] flex flex-col h-full border-r border-[#1F2937]">
           <div className="p-3 border-b border-[#1F2937]">
             <input 
               type="text" 
-              placeholder="Search coins, pairs..." 
+              placeholder="Search coins..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[#121820] border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
             />
             <div className="flex gap-2 mt-2 overflow-x-auto text-[11px] text-gray-400 no-scrollbar">
@@ -102,154 +181,92 @@ export default function TradePage() {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-gray-900">
-            {pairsData
-              .filter(p => activeTab === 'All' || p.category === activeTab)
-              .map((pair) => (
-                <div 
-                  key={pair.symbol} 
-                  onClick={() => setSelectedPair(pair)}
-                  className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-[#121820] transition ${selectedPair?.symbol === pair.symbol ? 'bg-[#121820] border-l-2 border-blue-500' : ''}`}
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs text-white">{pair.symbol}</span>
-                      <span className="text-[9px] bg-gray-800 text-amber-400 px-1 rounded">{pair.leverage}</span>
-                    </div>
-                    <span className="text-[10px] text-gray-500">{pair.name}</span>
+            {filteredPairs.map((pair) => (
+              <div 
+                key={pair.symbol} 
+                onClick={() => setSelectedPair(pair)}
+                className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-[#121820] transition ${activePair?.binanceSymbol === pair.binanceSymbol ? 'bg-[#121820] border-l-2 border-blue-500' : ''}`}
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-xs text-white">{pair.symbol}</span>
+                    <span className="text-[9px] bg-gray-800 text-amber-400 px-1 rounded">{pair.leverage}</span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs font-semibold">${pair.price.toLocaleString()}</div>
-                    <div className={`text-[10px] ${pair.change24h >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                      {pair.change24h >= 0 ? '+' : ''}{pair.change24h.toFixed(2)}%
-                    </div>
+                  <span className="text-[10px] text-gray-500">{pair.name}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-semibold text-white">
+                    ${formatPrice(pair.price)}
+                  </div>
+                  <div className={`text-[10px] ${pair.change24h >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                    {pair.change24h >= 0 ? '+' : ''}{pair.change24h ? pair.change24h.toFixed(2) : '0.00'}%
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="col-span-7 bg-[#0B0F14] flex flex-col h-full overflow-y-auto">
+        {/* PANEL TENGAH: CHART */}
+        <div className="col-span-6 bg-[#0B0F14] flex flex-col h-full border-r border-[#1F2937]">
           <div className="p-3 border-b border-[#1F2937] flex items-center justify-between bg-[#0B0F14]">
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                {selectedPair?.symbol || 'BTC/USDT'}
+                {activePair?.symbol || 'BTC/USDT'}
                 <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-normal">Perp</span>
               </h2>
               <div>
                 <div className="text-xs text-gray-400">Mark Price</div>
-                <div className="text-sm font-semibold text-white">${currentPrice.toLocaleString()}</div>
+                <div className="text-sm font-semibold text-white">
+                  ${formatPrice(currentPrice)}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-gray-400">24h Change</div>
-                <div className={`text-sm font-semibold ${(selectedPair?.change24h || 0) >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                  {(selectedPair?.change24h || 0) >= 0 ? '+' : ''}{(selectedPair?.change24h || 0).toFixed(2)}%
+                <div className={`text-sm font-semibold ${(activePair?.change24h || 0) >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                  {(activePair?.change24h || 0) >= 0 ? '+' : ''}{(activePair?.change24h || 0).toFixed(2)}%
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="h-[420px] bg-[#0B0F14] relative border-b border-[#1F2937]">
-            <TradingViewWidget symbol={selectedPair?.binanceSymbol || 'BTCUSDT'} />
-          </div>
-
-          <div className="p-4 bg-[#0B0F14] flex-1">
-            <div className="flex gap-4 border-b border-gray-800 pb-2 mb-4">
-              {(['Limit', 'Market', 'Trigger'] as const).map(t => (
-                <button 
-                  key={t} 
-                  onClick={() => setOrderType(t)}
-                  className={`text-xs font-semibold pb-1 ${orderType === t ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-gray-400'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="text-gray-400 mb-1 block">Order Price</label>
-                <input 
-                  type="number" 
-                  value={currentPrice} 
-                  readOnly 
-                  className="w-full bg-[#121820] border border-gray-800 rounded px-3 py-2 text-white"
-                />
-              </div>
-              <div>
-                <label className="text-gray-400 mb-1 block">Margin (USDT)</label>
-                <input 
-                  type="number" 
-                  value={margin} 
-                  onChange={(e) => setMargin(Number(e.target.value))}
-                  className="w-full bg-[#121820] border border-gray-800 rounded px-3 py-2 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>Leverage</span>
-                <span className="text-white font-bold">{leverage}x</span>
-              </div>
-              <input 
-                type="range" 
-                min="1" 
-                max="100" 
-                value={leverage} 
-                onChange={(e) => setLeverage(Number(e.target.value))}
-                className="w-full accent-emerald-500" 
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <button 
-                onClick={() => updateBalance(session.demoBalance + 50)}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg text-sm transition"
-              >
-                Long
-              </button>
-              <button 
-                onClick={() => updateBalance(session.demoBalance - 50)}
-                className="bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-lg text-sm transition"
-              >
-                Short
-              </button>
-            </div>
+          <div className="h-[400px] bg-[#0B0F14] relative border-b border-[#1F2937]">
+            <TradingViewWidget symbol={activePair?.binanceSymbol || 'BTCUSDT'} />
           </div>
         </div>
 
-        <div className="col-span-3 bg-[#0B0F14] flex flex-col h-full border-l border-[#1F2937]">
-          <div className="p-3 border-b border-[#1F2937] flex items-center justify-between">
+        {/* PANEL KANAN: REALTIME ORDERBOOK */}
+        <div className="col-span-3 bg-[#0B0F14] flex flex-col h-full">
+          <div className="p-3 border-b border-[#1F2937] flex justify-between items-center">
             <span className="text-xs font-bold text-white">Order Book</span>
-            <span className="text-[10px] text-gray-500">0.1 ▾</span>
+            <span className="text-[10px] text-gray-500">Size (USDT)</span>
           </div>
 
-          <div className="flex-1 p-2 space-y-1 overflow-hidden text-[11px] font-mono">
-            {[81267, 81266, 81265, 81264, 81263].map((p, i) => (
-              <div key={i} className="flex justify-between text-rose-400">
-                <span>{p}</span>
-                <span className="text-gray-400">0.3245</span>
-                <span className="text-gray-500">2.4187</span>
-              </div>
-            ))}
-            
-            <div className="my-2 py-1 text-center font-bold text-emerald-400 text-xs bg-[#121820] rounded">
-              ${currentPrice.toLocaleString()} ↑
+          <div className="flex-1 p-3 flex flex-col justify-between text-[11px] font-mono">
+            {/* ASKS (RED) */}
+            <div className="space-y-1.5">
+              {asks.map((ask, i) => (
+                <div key={i} className="flex justify-between items-center text-rose-400 hover:bg-rose-950/20 px-1 rounded transition">
+                  <span className="font-semibold">${formatPrice(ask.price)}</span>
+                  <span className="text-gray-400">{ask.amount}</span>
+                </div>
+              ))}
             </div>
 
-            {[81257, 81256, 81255, 81254, 81253].map((p, i) => (
-              <div key={i} className="flex justify-between text-emerald-400">
-                <span>{p}</span>
-                <span className="text-gray-400">0.1823</span>
-                <span className="text-gray-500">0.1823</span>
-              </div>
-            ))}
-          </div>
+            {/* CURRENT SPREAD PRICE */}
+            <div className="my-3 py-2 text-center font-bold text-emerald-400 text-xs bg-[#121820] rounded border border-gray-800/60 shadow-inner flex items-center justify-center gap-1">
+              <span>${formatPrice(currentPrice)}</span>
+              <span className="animate-pulse">⚡</span>
+            </div>
 
-          <div className="p-3 border-t border-[#1F2937]">
-            <span className="text-xs font-bold text-white block mb-2">Positions (0)</span>
-            <div className="text-center py-6 text-gray-500 text-xs">
-              No open positions
+            {/* BIDS (GREEN) */}
+            <div className="space-y-1.5">
+              {bids.map((bid, i) => (
+                <div key={i} className="flex justify-between items-center text-emerald-400 hover:bg-emerald-950/20 px-1 rounded transition">
+                  <span className="font-semibold">${formatPrice(bid.price)}</span>
+                  <span className="text-gray-400">{bid.amount}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -257,3 +274,4 @@ export default function TradePage() {
     </div>
   );
                   }
+                
