@@ -1,7 +1,17 @@
 {
   "name": "dex-hexagonal",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-19",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./out"
-  }
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hexagonal-db",
+      "database_id": "6bb00006-75bb-422c-bb1e-57be42b7b67d"
+    }
+  ]
 }
