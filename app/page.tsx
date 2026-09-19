@@ -467,5 +467,34 @@ export default function HexagonalTrade() {
                   type="number"
                   value={tradeAmount}
                   onChange={(e) => setTradeAmount(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20",
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setPosition("LONG");
+                  setEntryPrice(price);
+                }}
+                className="bg-[#22c55e] hover:bg-[#16a34a] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
+              >
+                <TrendingUp size={14} /> Long
+              </button>
+              <button
+                onClick={() => {
+                  setPosition("SHORT");
+                  setEntryPrice(price);
+                }}
+                className="bg-[#ef4444] hover:bg-[#dc2626] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
+              >
+                <TrendingDown size={14} /> Short
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
           
