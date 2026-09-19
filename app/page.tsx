@@ -1,500 +1,259 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import {
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  Users,
-  Lock,
-  Menu,
-  X,
-  ArrowRight,
-  CheckCircle2,
-  KeyRound,
-} from "lucide-react";
-import { useChainlinkPrice } from "./hooks/useChainlinkPrice";
-import TradingViewWidget from "./components/TradingViewWidget";
+import React, { useState, useEffect } from 'react';
+import { HexagonalLogo } from './components/HexagonalLogo';
+import { usePersistentAuth } from './hooks/usePersistentAuth';
+import TradingViewWidget from './components/TradingViewWidget';
 
-type Screen = "landing" | "code" | "app" | "admin";
-type WaitlistEntry = {
-  id: number;
-  email: string;
-  status: "Pending" | "Approved";
-  code: string | null;
-};
+export default function TradePage() {
+  const { session, login, logout, updateBalance } = usePersistentAuth();
+  const [pairsData, setPairsData] = useState<any[]>([]);
+  const [selectedPair, setSelectedPair] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('All');
+  const [orderType, setOrderType] = useState<'Limit' | 'Market' | 'Trigger'>('Limit');
+  const [margin, setMargin] = useState<number>(100);
+  const [leverage, setLeverage] = useState<number>(35);
 
-async function api(action: string, body: Record<string, unknown>) {
-  const res = await fetch(`/api/${action}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, data };
-}
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch('/api/prices');
+        const json = await res.json();
+        if (json.success) {
+          setPairsData(json.data);
+          if (!selectedPair) setSelectedPair(json.data[0]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 3000);
+    return () => clearInterval(interval);
+  }, [selectedPair]);
 
-export default function HexagonalTrade() {
-  const [screen, setScreen] = useState<Screen>("landing");
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  // Waitlist
-  const [email, setEmail] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [waitlistError, setWaitlistError] = useState("");
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
-
-  // Code entry
-  const [codeEmail, setCodeEmail] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
-
-  // Admin
-  const [adminPassword, setAdminPassword] = useState("");
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [adminError, setAdminError] = useState("");
-
-  // Trading
-  const { price, history, loading, error } = useChainlinkPrice();
-  const [balance, setBalance] = useState(10000);
-  const [position, setPosition] = useState<"LONG" | "SHORT" | null>(null);
-  const [entryPrice, setEntryPrice] = useState<number | null>(null);
-  const [leverage, setLeverage] = useState(10);
-  const [tradeAmount, setTradeAmount] = useState("100");
-
-  const handleWaitlistSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    setSubmitting(true);
-    setWaitlistError("");
-    const { ok, data } = await api("waitlist", { email });
-    setSubmitting(false);
-    if (ok) {
-      setIsSubmitted(true);
-      setEmail("");
-    } else {
-      setWaitlistError(data.error || "Gagal daftar, coba lagi.");
-    }
-  };
-
-  const loadAdmin = async () => {
-    setAdminError("");
-    const { ok, data } = await api("admin-list", { password: adminPassword });
-    if (ok) {
-      setWaitlist(data.list);
-      setIsAdminUnlocked(true);
-    } else {
-      setAdminError(data.error || "Password salah");
-    }
-  };
-
-  const handleApprove = async (id: number) => {
-    const { ok, data } = await api("approve", { password: adminPassword, id });
-    if (!ok) {
-      alert(data.error || "Gagal approve");
-      return;
-    }
-    if (!data.emailSent) {
-      alert(
-        `Approved, tapi email gagal terkirim. Kirim manual kode ini: ${data.code}`
-      );
-    }
-    loadAdmin();
-  };
-
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { ok } = await api("unlock", { email: codeEmail, code: codeInput });
-    if (ok) {
-      setCodeError("");
-      setScreen("app");
-    } else {
-      setCodeError("Email atau kode salah.");
-    }
-  };
-
-  const HeaderNav = () => (
-    <nav className="border-b border-white/[0.06] bg-[#0c0d0f]/90 backdrop-blur px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-      <button onClick={() => setScreen("landing")} className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-white rounded flex items-center justify-center font-bold text-xs text-black">
-          H
-        </div>
-        <span className="font-semibold text-[13px] tracking-wide text-zinc-300">HEXAGONAL</span>
-      </button>
-      <button onClick={() => setMenuOpen(true)} className="text-zinc-400 hover:text-white">
-        <Menu size={20} />
-      </button>
-    </nav>
-  );
-
-  const SideMenu = () =>
-    menuOpen && (
-      <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm" onClick={() => setMenuOpen(false)}>
-        <div
-          className="absolute top-0 right-0 h-full w-64 bg-[#0c0d0f] border-l border-white/[0.06] p-5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button onClick={() => setMenuOpen(false)} className="text-zinc-400 hover:text-white mb-6">
-            <X size={20} />
-          </button>
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => {
-                setScreen("landing");
-                setMenuOpen(false);
-              }}
-              className="text-left text-[13px] text-zinc-300 hover:text-white py-2.5 border-b border-white/[0.06]"
-            >
-              Home
-            </button>
-            {screen === "app" && (
-              <button
-                onClick={() => {
-                  setScreen("landing");
-                  setMenuOpen(false);
-                }}
-                className="text-left text-[13px] text-zinc-300 hover:text-white py-2.5 border-b border-white/[0.06]"
-              >
-                Log Out
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setScreen("admin");
-                setMenuOpen(false);
-              }}
-              className="text-left text-[13px] text-zinc-300 hover:text-white py-2.5 border-b border-white/[0.06]"
-            >
-              Admin
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-
-  // ---------- LANDING ----------
-  if (screen === "landing") {
+  if (!session.isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#08090a] text-zinc-100 font-sans antialiased flex flex-col">
-        <HeaderNav />
-        <SideMenu />
-        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <span className="text-[11px] tracking-[0.2em] text-zinc-500 mb-4 uppercase">Hexagonal Testnet</span>
-          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-3">
-            Join for Testnet<br />Early Access
-          </h1>
-          <p className="text-[13px] text-zinc-500 max-w-sm mb-8">
-            Daftar email, tunggu approval admin, dan dapatkan kode akses untuk klaim $10,000 USD demo balance.
-          </p>
-
-          {isSubmitted ? (
-            <div className="bg-[#4ade80]/[0.08] border border-[#4ade80]/20 p-3.5 rounded-lg text-[#4ade80] text-[12px] flex items-center gap-2 max-w-sm">
-              <CheckCircle2 size={16} /> Terdaftar — tunggu kode akses lewat email.
-            </div>
-          ) : (
-            <form onSubmit={handleWaitlistSubmit} className="w-full max-w-sm space-y-2.5">
-              <input
-                type="email"
-                placeholder="Masukkan email aktif"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-4 py-3 text-[13px] text-white focus:outline-none focus:border-white/20"
-              />
-              {waitlistError && <p className="text-[11px] text-[#f87171]">{waitlistError}</p>}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-white hover:bg-zinc-200 disabled:opacity-60 text-black font-semibold py-3 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
-              >
-                {submitting ? "Mengirim..." : "Join Waitlist"} <ArrowRight size={14} />
-              </button>
-            </form>
-          )}
-
+      <div className="min-h-screen bg-[#0B0F14] text-white flex flex-col items-center justify-center p-4">
+        <div className="bg-[#121820] border border-gray-800 rounded-2xl p-8 max-w-md w-full flex flex-col items-center text-center shadow-2xl">
+          <HexagonalLogo className="w-16 h-16 mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Welcome to Hexagonal DEX</h1>
+          <p className="text-gray-400 text-sm mb-6">Trade Perpetual Contracts with Ultra-Low Latency and Decentralized Liquidity.</p>
           <button
-            onClick={() => setScreen("code")}
-            className="mt-6 text-[12px] text-zinc-500 hover:text-white flex items-center gap-1.5"
+            onClick={() => login()}
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition duration-200"
           >
-            <KeyRound size={13} /> Sudah punya kode akses?
+            Connect Wallet / Launch App
           </button>
         </div>
       </div>
     );
   }
 
-  // ---------- CODE ENTRY ----------
-  if (screen === "code") {
-    return (
-      <div className="min-h-screen bg-[#08090a] text-zinc-100 font-sans antialiased flex flex-col">
-        <HeaderNav />
-        <SideMenu />
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="w-full max-w-sm bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-6">
-            <h2 className="text-[16px] font-semibold mb-1.5 text-center">Masukkan Kode Akses</h2>
-            <p className="text-[12px] text-zinc-500 mb-5 text-center">
-              Cek kode yang dikirim ke email lo, lalu masukkan email & kode di bawah.
-            </p>
-            <form onSubmit={handleUnlock} className="space-y-2.5">
-              <input
-                type="email"
-                placeholder="Email terdaftar"
-                required
-                value={codeEmail}
-                onChange={(e) => setCodeEmail(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-4 py-2.5 text-[13px] text-white focus:outline-none focus:border-white/20"
-              />
-              <input
-                type="text"
-                placeholder="Kode akses"
-                required
-                value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-4 py-2.5 text-[13px] text-white font-mono uppercase focus:outline-none focus:border-white/20"
-              />
-              {codeError && <p className="text-[11px] text-[#f87171]">{codeError}</p>}
-              <button
-                type="submit"
-                className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-2.5 rounded-lg text-[13px]"
-              >
-                Unlock
-              </button>
-            </form>
-            <button
-              onClick={() => setScreen("landing")}
-              className="mt-4 text-[11px] text-zinc-500 hover:text-white block mx-auto"
-            >
-              Belum punya kode? Balik ke waitlist
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const currentPrice = selectedPair?.price || 81230;
 
-  // ---------- ADMIN ----------
-  if (screen === "admin") {
-    return (
-      <div className="min-h-screen bg-[#08090a] text-zinc-100 font-sans antialiased">
-        <HeaderNav />
-        <SideMenu />
-        <div className="p-3 max-w-2xl mx-auto">
-          {isAdminUnlocked ? (
-            <div className="bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-4 border-b border-white/[0.06] pb-3">
-                <Users size={15} className="text-zinc-400" />
-                <div className="flex-1">
-                  <h3 className="text-[13px] font-semibold">Waitlist Approval</h3>
-                  <p className="text-[11px] text-zinc-500">Approve → kode dibuat & dikirim otomatis ke email user.</p>
-                </div>
-                <button
-                  onClick={loadAdmin}
-                  className="text-[11px] bg-white/[0.06] hover:bg-white/[0.1] px-2 py-1 rounded text-zinc-300"
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[12px]">
-                  <thead>
-                    <tr className="text-zinc-500 border-b border-white/[0.06]">
-                      <th className="py-2 px-2 font-medium">Email</th>
-                      <th className="py-2 px-2 font-medium">Status</th>
-                      <th className="py-2 px-2 font-medium">Kode</th>
-                      <th className="py-2 px-2 font-medium text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {waitlist.map((u) => (
-                      <tr key={u.id} className="border-b border-white/[0.04]">
-                        <td className="py-2.5 px-2 font-mono text-zinc-300">{u.email}</td>
-                        <td className="py-2.5 px-2">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              u.status === "Approved" ? "bg-[#4ade80]/10 text-[#4ade80]" : "bg-[#facc15]/10 text-[#facc15]"
-                            }`}
-                          >
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 font-mono text-zinc-400">{u.code ?? "—"}</td>
-                        <td className="py-2.5 px-2 text-right">
-                          {u.status === "Pending" ? (
-                            <button
-                              onClick={() => handleApprove(u.id)}
-                              className="bg-white hover:bg-zinc-200 text-black text-[11px] font-semibold px-2.5 py-1 rounded"
-                            >
-                              Approve
-                            </button>
-                          ) : (
-                            <span className="text-[11px] text-zinc-600">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {waitlist.length === 0 && (
-                  <p className="text-[12px] text-zinc-500 text-center py-6">Belum ada yang daftar.</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-xs mx-auto my-6 bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-6 text-center">
-              <div className="w-10 h-10 bg-white/[0.06] text-zinc-300 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Lock size={16} />
-              </div>
-              <h2 className="text-[14px] font-semibold mb-3">Admin Access</h2>
-              <input
-                type="password"
-                placeholder="Password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3.5 py-2.5 text-[13px] text-white mb-2.5 focus:outline-none focus:border-white/20"
-              />
-              {adminError && <p className="text-[11px] text-[#f87171] mb-2">{adminError}</p>}
-              <button
-                onClick={loadAdmin}
-                className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-2.5 rounded-lg text-[13px]"
-              >
-                Unlock
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ---------- APP (TRADING DASHBOARD) ----------
   return (
-    <div className="min-h-screen bg-[#08090a] text-zinc-100 font-sans antialiased">
-      <HeaderNav />
-      <SideMenu />
-      <main className="p-3 max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="lg:col-span-2 bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4 flex flex-col">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[15px] font-semibold tracking-tight">BTC/USD</h2>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-white/[0.06] text-zinc-400 rounded font-medium">
-                    PERP
-                  </span>
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-0.5">Chainlink · Sepolia testnet</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-mono font-semibold text-[#4ade80] tabular-nums">
-                  {loading ? "—" : error ? "N/A" : `$${price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                </p>
-                <p className="text-[11px] text-[#4ade80] flex items-center justify-end gap-1 font-mono">
-                  <TrendingUp size={11} /> live
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#0B0F14] text-gray-200 font-sans flex flex-col h-screen overflow-hidden">
+      <header className="h-14 border-b border-[#1F2937] bg-[#0B0F14] px-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-8">
+          <HexagonalLogo />
+          <nav className="flex items-center gap-6 text-sm font-medium">
+            <button className="text-blue-400 border-b-2 border-blue-500 pb-4 pt-4">Trade</button>
+            <button className="text-gray-400 hover:text-white">Portfolio</button>
+            <button className="text-gray-400 hover:text-white">Earn</button>
+            <button className="text-gray-400 hover:text-white">More ▾</button>
+          </nav>
+        </div>
 
-            <div className="h-64 bg-black/30 rounded-lg border border-white/[0.06] overflow-hidden">
-              <TradingViewWidget />
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-[#121820] border border-gray-800 rounded-lg px-3 py-1.5 flex items-center gap-2 text-sm">
+            <span className="text-gray-400 text-xs">Demo:</span>
+            <span className="font-semibold text-white">${session.demoBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <button 
+            onClick={logout}
+            className="bg-[#121820] border border-gray-800 hover:border-red-500/50 text-xs text-gray-300 hover:text-red-400 px-3 py-1.5 rounded-lg flex items-center gap-2 transition"
+          >
+            <span>{session.address}</span>
+            <span className="text-red-400 font-bold">Logout</span>
+          </button>
+        </div>
+      </header>
 
-            <div className="mt-3 bg-black/30 rounded-lg p-3 border border-white/[0.06] flex items-center justify-between">
-              <span className="text-[12px] text-zinc-500 flex items-center gap-1.5">
-                <Wallet size={13} /> Demo Balance
-              </span>
-              <span className="font-mono text-[13px] font-semibold tabular-nums">
-                ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
+      <div className="flex-1 grid grid-cols-12 gap-0.5 bg-[#1F2937] overflow-hidden">
+        <div className="col-span-2 bg-[#0B0F14] flex flex-col h-full border-r border-[#1F2937]">
+          <div className="p-3 border-b border-[#1F2937]">
+            <input 
+              type="text" 
+              placeholder="Search coins, pairs..." 
+              className="w-full bg-[#121820] border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+            />
+            <div className="flex gap-2 mt-2 overflow-x-auto text-[11px] text-gray-400 no-scrollbar">
+              {['All', 'Top', 'Layer 1', 'DeFi', 'Meme'].map(cat => (
+                <button 
+                  key={cat}
+                  onClick={() => setActiveTab(cat)}
+                  className={`px-2 py-0.5 rounded ${activeTab === cat ? 'bg-gray-800 text-white' : 'hover:text-white'}`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {position && entryPrice && price && (
-              (() => {
-                const priceChangePct = (price - entryPrice) / entryPrice;
-                const pnlPct = priceChangePct * leverage * (position === "LONG" ? 1 : -1);
-                const margin = Number(tradeAmount) || 0;
-                const pnlUsd = margin * pnlPct;
-                const isProfit = pnlUsd >= 0;
-                return (
-                  <div className={`mt-3 p-3 rounded-lg border ${isProfit ? "bg-[#4ade80]/[0.06] border-[#4ade80]/20" : "bg-[#f87171]/[0.06] border-[#f87171]/20"}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] text-zinc-500 font-mono">
-                        {position} {leverage}x @ ${entryPrice.toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setBalance((b) => b + pnlUsd);
-                          setPosition(null);
-                          setEntryPrice(null);
-                        }}
-                        className="text-[11px] bg-white/[0.06] hover:bg-white/[0.1] px-2 py-1 rounded text-zinc-300"
-                      >
-                        Close
-                      </button>
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-900">
+            {pairsData
+              .filter(p => activeTab === 'All' || p.category === activeTab)
+              .map((pair) => (
+                <div 
+                  key={pair.symbol} 
+                  onClick={() => setSelectedPair(pair)}
+                  className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-[#121820] transition ${selectedPair?.symbol === pair.symbol ? 'bg-[#121820] border-l-2 border-blue-500' : ''}`}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-xs text-white">{pair.symbol}</span>
+                      <span className="text-[9px] bg-gray-800 text-amber-400 px-1 rounded">{pair.leverage}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-zinc-500">Unrealized P&L</span>
-                      <span className={`font-mono text-[13px] font-semibold tabular-nums ${isProfit ? "text-[#4ade80]" : "text-[#f87171]"}`}>
-                        {isProfit ? "+" : ""}{pnlUsd.toFixed(2)} ({(pnlPct * 100).toFixed(2)}%)
-                      </span>
+                    <span className="text-[10px] text-gray-500">{pair.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-semibold">${pair.price.toLocaleString()}</div>
+                    <div className={`text-[10px] ${pair.change24h >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                      {pair.change24h >= 0 ? '+' : ''}{pair.change24h.toFixed(2)}%
                     </div>
                   </div>
-                );
-              })()
-            )}
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="col-span-7 bg-[#0B0F14] flex flex-col h-full overflow-y-auto">
+          <div className="p-3 border-b border-[#1F2937] flex items-center justify-between bg-[#0B0F14]">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                {selectedPair?.symbol || 'BTC/USDT'}
+                <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-normal">Perp</span>
+              </h2>
+              <div>
+                <div className="text-xs text-gray-400">Mark Price</div>
+                <div className="text-sm font-semibold text-white">${currentPrice.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">24h Change</div>
+                <div className={`text-sm font-semibold ${(selectedPair?.change24h || 0) >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                  {(selectedPair?.change24h || 0) >= 0 ? '+' : ''}{(selectedPair?.change24h || 0).toFixed(2)}%
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4 flex flex-col justify-between">
-            <div>
-              <h3 className="text-[12px] font-medium text-zinc-500 mb-3 uppercase tracking-wide">Place Order</h3>
-              <div className="mb-4">
-                <div className="flex justify-between mb-1.5">
-                  <label className="text-[11px] text-zinc-500">Leverage</label>
-                  <span className="text-[11px] font-mono text-zinc-300">{leverage}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="50"
-                  value={leverage}
-                  onChange={(e) => setLeverage(Number(e.target.value))}
-                  className="w-full accent-white h-1 cursor-pointer"
+          <div className="h-[420px] bg-[#0B0F14] relative border-b border-[#1F2937]">
+            <TradingViewWidget symbol={selectedPair?.binanceSymbol || 'BTCUSDT'} />
+          </div>
+
+          <div className="p-4 bg-[#0B0F14] flex-1">
+            <div className="flex gap-4 border-b border-gray-800 pb-2 mb-4">
+              {(['Limit', 'Market', 'Trigger'] as const).map(t => (
+                <button 
+                  key={t} 
+                  onClick={() => setOrderType(t)}
+                  className={`text-xs font-semibold pb-1 ${orderType === t ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-gray-400'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="text-gray-400 mb-1 block">Order Price</label>
+                <input 
+                  type="number" 
+                  value={currentPrice} 
+                  readOnly 
+                  className="w-full bg-[#121820] border border-gray-800 rounded px-3 py-2 text-white"
                 />
               </div>
-              <div className="mb-4">
-                <label className="text-[11px] text-zinc-500 block mb-1.5">Margin (USD)</label>
-                <input
-                  type="number"
-                  value={tradeAmount}
-                  onChange={(e) => setTradeAmount(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20"
+              <div>
+                <label className="text-gray-400 mb-1 block">Margin (USDT)</label>
+                <input 
+                  type="number" 
+                  value={margin} 
+                  onChange={(e) => setMargin(Number(e.target.value))}
+                  className="w-full bg-[#121820] border border-gray-800 rounded px-3 py-2 text-white"
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  setPosition("LONG");
-                  setEntryPrice(price);
-                }}
-                className="bg-[#22c55e] hover:bg-[#16a34a] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
+
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Leverage</span>
+                <span className="text-white font-bold">{leverage}x</span>
+              </div>
+              <input 
+                type="range" 
+                min="1" 
+                max="100" 
+                value={leverage} 
+                onChange={(e) => setLeverage(Number(e.target.value))}
+                className="w-full accent-emerald-500" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button 
+                onClick={() => updateBalance(session.demoBalance + 50)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg text-sm transition"
               >
-                <TrendingUp size={14} /> Long
+                Long
               </button>
-              <button
-                onClick={() => {
-                  setPosition("SHORT");
-                  setEntryPrice(price);
-                }}
-                className="bg-[#ef4444] hover:bg-[#dc2626] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
+              <button 
+                onClick={() => updateBalance(session.demoBalance - 50)}
+                className="bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-lg text-sm transition"
               >
-                <TrendingDown size={14} /> Short
+                Short
               </button>
             </div>
           </div>
         </div>
-      </main>
+
+        <div className="col-span-3 bg-[#0B0F14] flex flex-col h-full border-l border-[#1F2937]">
+          <div className="p-3 border-b border-[#1F2937] flex items-center justify-between">
+            <span className="text-xs font-bold text-white">Order Book</span>
+            <span className="text-[10px] text-gray-500">0.1 ▾</span>
+          </div>
+
+          <div className="flex-1 p-2 space-y-1 overflow-hidden text-[11px] font-mono">
+            {[81267, 81266, 81265, 81264, 81263].map((p, i) => (
+              <div key={i} className="flex justify-between text-rose-400">
+                <span>{p}</span>
+                <span className="text-gray-400">0.3245</span>
+                <span className="text-gray-500">2.4187</span>
+              </div>
+            ))}
+            
+            <div className="my-2 py-1 text-center font-bold text-emerald-400 text-xs bg-[#121820] rounded">
+              ${currentPrice.toLocaleString()} ↑
+            </div>
+
+            {[81257, 81256, 81255, 81254, 81253].map((p, i) => (
+              <div key={i} className="flex justify-between text-emerald-400">
+                <span>{p}</span>
+                <span className="text-gray-400">0.1823</span>
+                <span className="text-gray-500">0.1823</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 border-t border-[#1F2937]">
+            <span className="text-xs font-bold text-white block mb-2">Positions (0)</span>
+            <div className="text-center py-6 text-gray-500 text-xs">
+              No open positions
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
-          
+                  }
