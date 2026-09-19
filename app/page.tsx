@@ -1,284 +1,351 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
-  ShieldCheck, 
-  Clock, 
-  Users, 
-  ChevronRight, 
-  CheckCircle2, 
-  AlertCircle 
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Clock,
+  Users,
+  ChevronRight,
+  CheckCircle2,
+  Lock,
 } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useChainlinkPrice } from "./hooks/useChainlinkPrice";
+
+const ADMIN_PASSWORD = "Kanjut666";
 
 export default function HexagonalTrade() {
   const [activeTab, setActiveTab] = useState<"trade" | "waitlist" | "admin">("trade");
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  // State Simulasi Balance & Waitlist
-  const [balance, setBalance] = useState(10000); // 10,000 USDH Demo
+
+  const { price, history, loading, error } = useChainlinkPrice();
+
+  const [balance, setBalance] = useState(10000);
   const [position, setPosition] = useState<"LONG" | "SHORT" | null>(null);
+  const [entryPrice, setEntryPrice] = useState<number | null>(null);
   const [leverage, setLeverage] = useState(10);
   const [tradeAmount, setTradeAmount] = useState("100");
 
-  // Mock Data Waitlist Admin
+  const [adminPassword, setAdminPassword] = useState("");
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+
   const [waitlistUsers, setWaitlistUsers] = useState([
     { id: 1, email: "trader1@gmail.com", status: "Approved", balance: "$10,000 USDH" },
     { id: 2, email: "crypto_boss@yahoo.com", status: "Pending", balance: "$0 USDH" },
-    { id: 3, email: "hex_trader@outlook.com", status: "Pending", balance: "$0 USDH" }
+    { id: 3, email: "hex_trader@outlook.com", status: "Pending", balance: "$0 USDH" },
   ]);
 
   const handleWaitlistSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
       setIsSubmitted(true);
-      setWaitlistUsers([
-        ...waitlistUsers,
-        { id: Date.now(), email, status: "Pending", balance: "$0 USDH" }
-      ]);
+      setWaitlistUsers([...waitlistUsers, { id: Date.now(), email, status: "Pending", balance: "$0 USDH" }]);
       setEmail("");
     }
   };
 
   const handleApprove = (id: number) => {
     setWaitlistUsers(
-      waitlistUsers.map((user) =>
-        user.id === id ? { ...user, status: "Approved", balance: "$10,000 USDH" } : user
-      )
+      waitlistUsers.map((u) => (u.id === id ? { ...u, status: "Approved", balance: "$10,000 USDH" } : u))
     );
   };
 
+  const tabBtn = (id: typeof activeTab, label: string) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`px-3 py-1.5 rounded text-[13px] font-medium transition ${
+        activeTab === id ? "bg-white text-black" : "text-zinc-400 hover:text-white"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Header / Navbar */}
-      <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div className="min-h-screen bg-[#08090a] text-zinc-100 font-sans antialiased">
+      {/* Top nav */}
+      <nav className="border-b border-white/[0.06] bg-[#0c0d0f]/90 backdrop-blur px-4 py-2.5 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30">
+          <div className="w-6 h-6 bg-white rounded flex items-center justify-center font-bold text-xs text-black">
             H
           </div>
-          <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-            HEXAGONAL
-          </span>
+          <span className="font-semibold text-[13px] tracking-wide text-zinc-300">HEXAGONAL</span>
         </div>
-
-        {/* Navigation Tabs */}
-        <div className="flex gap-1 bg-slate-800/60 p-1 rounded-xl text-xs sm:text-sm">
-          <button
-            onClick={() => setActiveTab("trade")}
-            className={`px-3 py-1.5 rounded-lg font-medium transition ${
-              activeTab === "trade" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            Trade
-          </button>
-          <button
-            onClick={() => setActiveTab("waitlist")}
-            className={`px-3 py-1.5 rounded-lg font-medium transition ${
-              activeTab === "waitlist" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            Waitlist
-          </button>
-          <button
-            onClick={() => setActiveTab("admin")}
-            className={`px-3 py-1.5 rounded-lg font-medium transition ${
-              activeTab === "admin" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            Admin
-          </button>
+        <div className="flex gap-0.5 bg-white/[0.04] p-0.5 rounded-lg">
+          {tabBtn("trade", "Trade")}
+          {tabBtn("waitlist", "Waitlist")}
+          {tabBtn("admin", "Admin")}
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="p-4 max-w-6xl mx-auto">
-        {/* TAB 1: TRADING DASHBOARD */}
+      <main className="p-3 max-w-6xl mx-auto">
+        {/* TRADE */}
         {activeTab === "trade" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Chart / Market Panel */}
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between min-h-[350px]">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2 bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4 flex flex-col">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-3">
                 <div>
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    BTC/USDH <span className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20">Perpetual</span>
-                  </h2>
-                  <p className="text-xs text-slate-400">Hexagonal Testnet Engine</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[15px] font-semibold tracking-tight">BTC/USDH</h2>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-white/[0.06] text-zinc-400 rounded font-medium">
+                      PERP
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Chainlink · Sepolia testnet</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-mono font-bold text-emerald-400">$64,250.00</p>
-                  <p className="text-xs text-emerald-400 flex items-center justify-end gap-1">
-                    <TrendingUp size={12} /> +2.45%
+                  <p className="text-xl font-mono font-semibold text-[#4ade80] tabular-nums">
+                    {loading ? "—" : error ? "N/A" : `$${price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </p>
+                  <p className="text-[11px] text-[#4ade80] flex items-center justify-end gap-1 font-mono">
+                    <TrendingUp size={11} /> live
                   </p>
                 </div>
               </div>
 
-              {/* Simulated Chart Placeholder */}
-              <div className="my-8 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-xl p-8 bg-slate-950/40">
-                <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-2">
-                  <TrendingUp size={24} />
-                </div>
-                <p className="text-sm font-medium text-slate-300">Live Chart Interface</p>
-                <p className="text-xs text-slate-500 text-center mt-1">TradingView Chart integration active upon mainnet release.</p>
+              <div className="h-44 bg-black/30 rounded-lg border border-white/[0.06] p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history}>
+                    <XAxis dataKey="time" hide />
+                    <YAxis
+                      domain={["auto", "auto"]}
+                      tick={{ fontSize: 10, fill: "#71717a" }}
+                      width={55}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#0c0d0f", border: "1px solid rgba(255,255,255,0.08)", fontSize: 12, borderRadius: 6 }}
+                      labelStyle={{ color: "#71717a" }}
+                    />
+                    <Line type="monotone" dataKey="price" stroke="#4ade80" dot={false} strokeWidth={1.5} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
 
-              {/* Demo Wallet Info */}
-              <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 flex items-center justify-between text-sm">
-                <span className="text-slate-400 flex items-center gap-2">
-                  <Wallet size={16} className="text-indigo-400" /> Demo Balance:
+              <div className="mt-3 bg-black/30 rounded-lg p-3 border border-white/[0.06] flex items-center justify-between">
+                <span className="text-[12px] text-zinc-500 flex items-center gap-1.5">
+                  <Wallet size={13} /> Demo Balance
                 </span>
-                <span className="font-mono font-bold text-white">${balance.toLocaleString()} USDH</span>
+                <span className="font-mono text-[13px] font-semibold tabular-nums">
+                  ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
               </div>
+
+              {position && entryPrice && price && (
+                (() => {
+                  const priceChangePct = (price - entryPrice) / entryPrice;
+                  const pnlPct = priceChangePct * leverage * (position === "LONG" ? 1 : -1);
+                  const margin = Number(tradeAmount) || 0;
+                  const pnlUsd = margin * pnlPct;
+                  const isProfit = pnlUsd >= 0;
+                  return (
+                    <div
+                      className={`mt-3 p-3 rounded-lg border ${
+                        isProfit ? "bg-[#4ade80]/[0.06] border-[#4ade80]/20" : "bg-[#f87171]/[0.06] border-[#f87171]/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] text-zinc-500 font-mono">
+                          {position} {leverage}x @ ${entryPrice.toFixed(2)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setBalance((b) => b + pnlUsd);
+                            setPosition(null);
+                            setEntryPrice(null);
+                          }}
+                          className="text-[11px] bg-white/[0.06] hover:bg-white/[0.1] px-2 py-1 rounded text-zinc-300"
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-zinc-500">Unrealized P&L</span>
+                        <span className={`font-mono text-[13px] font-semibold tabular-nums ${isProfit ? "text-[#4ade80]" : "text-[#f87171]"}`}>
+                          {isProfit ? "+" : ""}
+                          {pnlUsd.toFixed(2)} ({(pnlPct * 100).toFixed(2)}%)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
             </div>
 
-            {/* Order Execution Panel */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4 flex flex-col justify-between">
               <div>
-                <h3 className="font-bold text-slate-200 mb-4 border-b border-slate-800 pb-2">Place Order</h3>
-                
-                {/* Leverage Selector */}
+                <h3 className="text-[12px] font-medium text-zinc-500 mb-3 uppercase tracking-wide">Place Order</h3>
+
                 <div className="mb-4">
-                  <label className="text-xs text-slate-400 block mb-1">Leverage: {leverage}x</label>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="50" 
-                    value={leverage} 
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-[11px] text-zinc-500">Leverage</label>
+                    <span className="text-[11px] font-mono text-zinc-300">{leverage}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={leverage}
                     onChange={(e) => setLeverage(Number(e.target.value))}
-                    className="w-full accent-indigo-500 bg-slate-800 rounded-lg h-2 cursor-pointer"
+                    className="w-full accent-white h-1 cursor-pointer"
                   />
                 </div>
 
-                {/* Margin Amount */}
                 <div className="mb-4">
-                  <label className="text-xs text-slate-400 block mb-1">Margin Amount (USDH)</label>
-                  <input 
-                    type="number" 
+                  <label className="text-[11px] text-zinc-500 block mb-1.5">Margin (USDH)</label>
+                  <input
+                    type="number"
                     value={tradeAmount}
                     onChange={(e) => setTradeAmount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20"
                   />
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <button 
-                  onClick={() => setPosition("LONG")}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-1 shadow-lg shadow-emerald-900/20"
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setPosition("LONG");
+                    setEntryPrice(price);
+                  }}
+                  className="bg-[#22c55e] hover:bg-[#16a34a] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
                 >
-                  <TrendingUp size={16} /> LONG
+                  <TrendingUp size={14} /> Long
                 </button>
-                <button 
-                  onClick={() => setPosition("SHORT")}
-                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-1 shadow-lg shadow-rose-900/20"
+                <button
+                  onClick={() => {
+                    setPosition("SHORT");
+                    setEntryPrice(price);
+                  }}
+                  className="bg-[#ef4444] hover:bg-[#dc2626] text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
                 >
-                  <TrendingDown size={16} /> SHORT
+                  <TrendingDown size={14} /> Short
                 </button>
               </div>
-
-              {position && (
-                <div className="mt-3 p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-center text-xs text-indigo-300">
-                  Active Order: <span className="font-bold">{position}</span> {leverage}x on BTC/USDH
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* TAB 2: WAITLIST REGISTRATION */}
+        {/* WAITLIST */}
         {activeTab === "waitlist" && (
-          <div className="max-w-md mx-auto my-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
-            <div className="w-12 h-12 bg-indigo-600/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-500/30">
-              <ShieldCheck size={28} />
+          <div className="max-w-sm mx-auto my-6 bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-6 text-center">
+            <div className="w-10 h-10 bg-white/[0.06] text-zinc-300 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Clock size={18} />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Join Hexagonal Waitlist</h2>
-            <p className="text-xs text-slate-400 mb-6">
-              Get instant approval from admin to claim your initial <span className="text-indigo-400 font-bold">$10,000 USDH</span> testnet balance.
+            <h2 className="text-[16px] font-semibold mb-1.5">Join Waitlist</h2>
+            <p className="text-[12px] text-zinc-500 mb-5">
+              Get admin approval for <span className="text-zinc-300">$10,000 USDH</span> testnet balance.
             </p>
 
             {isSubmitted ? (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl text-emerald-400 text-sm flex items-center gap-2 justify-center">
-                <CheckCircle2 size={18} /> Registered! Awaiting admin approval.
+              <div className="bg-[#4ade80]/[0.08] border border-[#4ade80]/20 p-3 rounded-lg text-[#4ade80] text-[12px] flex items-center gap-2 justify-center">
+                <CheckCircle2 size={15} /> Registered — awaiting approval.
               </div>
             ) : (
-              <form onSubmit={handleWaitlistSubmit} className="space-y-3">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email" 
+              <form onSubmit={handleWaitlistSubmit} className="space-y-2.5">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3.5 py-2.5 text-[13px] text-white focus:outline-none focus:border-white/20"
                 />
-                <button 
+                <button
                   type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+                  className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 text-[13px]"
                 >
-                  Request Early Access <ChevronRight size={16} />
+                  Request Access <ChevronRight size={14} />
                 </button>
               </form>
             )}
           </div>
         )}
 
-        {/* TAB 3: ADMIN DASHBOARD */}
-        {activeTab === "admin" && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  <Users size={18} className="text-indigo-400" /> Admin Access Approval
-                </h3>
-                <p className="text-xs text-slate-400">Approve waitlist users to credit $10,000 USDH demo balance.</p>
+        {/* ADMIN */}
+        {activeTab === "admin" &&
+          (isAdminUnlocked ? (
+            <div className="bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4 border-b border-white/[0.06] pb-3">
+                <Users size={15} className="text-zinc-400" />
+                <div>
+                  <h3 className="text-[13px] font-semibold">Waitlist Approval</h3>
+                  <p className="text-[11px] text-zinc-500">Approve to credit $10,000 USDH demo balance.</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[12px]">
+                  <thead>
+                    <tr className="text-zinc-500 border-b border-white/[0.06]">
+                      <th className="py-2 px-2 font-medium">Email</th>
+                      <th className="py-2 px-2 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium">Balance</th>
+                      <th className="py-2 px-2 font-medium text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waitlistUsers.map((u) => (
+                      <tr key={u.id} className="border-b border-white/[0.04]">
+                        <td className="py-2.5 px-2 font-mono text-zinc-300">{u.email}</td>
+                        <td className="py-2.5 px-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              u.status === "Approved"
+                                ? "bg-[#4ade80]/10 text-[#4ade80]"
+                                : "bg-[#facc15]/10 text-[#facc15]"
+                            }`}
+                          >
+                            {u.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 font-mono text-zinc-400">{u.balance}</td>
+                        <td className="py-2.5 px-2 text-right">
+                          {u.status === "Pending" ? (
+                            <button
+                              onClick={() => handleApprove(u.id)}
+                              className="bg-white hover:bg-zinc-200 text-black text-[11px] font-semibold px-2.5 py-1 rounded"
+                            >
+                              Approve
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400">
-                    <th className="py-2 px-3">User Email</th>
-                    <th className="py-2 px-3">Status</th>
-                    <th className="py-2 px-3">Demo Balance</th>
-                    <th className="py-2 px-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {waitlistUsers.map((u) => (
-                    <tr key={u.id} className="border-b border-slate-800/50">
-                      <td className="py-3 px-3 font-mono text-slate-200">{u.email}</td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          u.status === "Approved" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-300">{u.balance}</td>
-                      <td className="py-3 px-3 text-right">
-                        {u.status === "Pending" ? (
-                          <button 
-                            onClick={() => handleApprove(u.id)}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
-                          >
-                            Approve $10k
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-500">Approved</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          ) : (
+            <div className="max-w-xs mx-auto my-6 bg-[#0c0d0f] border border-white/[0.06] rounded-lg p-6 text-center">
+              <div className="w-10 h-10 bg-white/[0.06] text-zinc-300 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Lock size={16} />
+              </div>
+              <h2 className="text-[14px] font-semibold mb-3">Admin Access</h2>
+              <input
+                type="password"
+                placeholder="Password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3.5 py-2.5 text-[13px] text-white mb-2.5 focus:outline-none focus:border-white/20"
+              />
+              <button
+                onClick={() => {
+                  if (adminPassword === ADMIN_PASSWORD) setIsAdminUnlocked(true);
+                  else alert("Password salah");
+                }}
+                className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-2.5 rounded-lg text-[13px]"
+              >
+                Unlock
+              </button>
             </div>
-          </div>
-        )}
+          ))}
       </main>
     </div>
   );
-         }
-                        
+}
