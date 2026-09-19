@@ -1,102 +1,44 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { NextResponse } from 'next/server';
 
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+export const PAIRS = [
+  { symbol: 'BTC/USDT', name: 'Bitcoin', binanceSymbol: 'BTCUSDT', leverage: '100x', category: 'Top' },
+  { symbol: 'ETH/USDT', name: 'Ethereum', binanceSymbol: 'ETHUSDT', leverage: '50x', category: 'Top' },
+  { symbol: 'SOL/USDT', name: 'Solana', binanceSymbol: 'SOLUSDT', leverage: '20x', category: 'Layer 1' },
+  { symbol: 'LINK/USDT', name: 'Chainlink', binanceSymbol: 'LINKUSDT', leverage: '10x', category: 'DeFi' },
+  { symbol: 'DOGE/USDT', name: 'Dogecoin', binanceSymbol: 'DOGEUSDT', leverage: '10x', category: 'Meme' },
+  { symbol: 'XRP/USDT', name: 'XRP', binanceSymbol: 'XRPUSDT', leverage: '10x', category: 'Top' },
+  { symbol: 'BNB/USDT', name: 'BNB', binanceSymbol: 'BNBUSDT', leverage: '20x', category: 'Top' },
+  { symbol: 'ADA/USDT', name: 'Cardano', binanceSymbol: 'ADAUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'TRX/USDT', name: 'TRON', binanceSymbol: 'TRXUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'DOT/USDT', name: 'Polkadot', binanceSymbol: 'DOTUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'LTC/USDT', name: 'Litecoin', binanceSymbol: 'LTCUSDT', leverage: '10x', category: 'Top' },
+  { symbol: 'NEAR/USDT', name: 'NEAR Protocol', binanceSymbol: 'NEARUSDT', leverage: '5x', category: 'Layer 1' },
+  { symbol: 'SUI/USDT', name: 'Sui', binanceSymbol: 'SUIUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'ARB/USDT', name: 'Arbitrum', binanceSymbol: 'ARBUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'OP/USDT', name: 'Optimism', binanceSymbol: 'OPUSDT', leverage: '10x', category: 'Layer 1' },
+  { symbol: 'PEPE/USDT', name: 'Pepe', binanceSymbol: 'PEPEUSDT', leverage: '5x', category: 'Meme' }
+];
 
-function makeCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
-}
-
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ action: string }> }
-) {
-  const { action } = await params;
-  const env = getCloudflareContext().env as any;
-  const db = env.DB;
-
-  let body: any = {};
+export async function GET() {
   try {
-    body = await req.json();
-  } catch {}
+    const symbols = JSON.stringify(PAIRS.map(p => p.binanceSymbol));
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${symbols}`, {
+      cache: 'no-store'
+    });
+    const data = await res.json();
+    
+    const formattedData = PAIRS.map(pair => {
+      const ticker = Array.isArray(data) ? data.find((t: any) => t.symbol === pair.binanceSymbol) : null;
+      return {
+        ...pair,
+        price: ticker ? parseFloat(ticker.lastPrice) : 0,
+        change24h: ticker ? parseFloat(ticker.priceChangePercent) : 0,
+        volume24h: ticker ? parseFloat(ticker.quoteVolume) : 0,
+      };
+    });
 
-  const isAdmin = () =>
-    !!env.ADMIN_PASSWORD && body.password === env.ADMIN_PASSWORD;
-
-  // Daftar waitlist
-  if (action === "waitlist") {
-    const email = String(body.email || "").trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return json({ error: "Email tidak valid" }, 400);
-    }
-    await db
-      .prepare("INSERT OR IGNORE INTO waitlist (email) VALUES (?)")
-      .bind(email)
-      .run();
-    return json({ ok: true });
+    return NextResponse.json({ success: true, data: formattedData });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to fetch price data' }, { status: 500 });
   }
-
-  // Admin: lihat daftar
-  if (action === "admin-list") {
-    if (!isAdmin()) return json({ error: "Password salah" }, 401);
-    const { results } = await db
-      .prepare("SELECT id, email, status, code FROM waitlist ORDER BY id DESC")
-      .all();
-    return json({ ok: true, list: results });
-  }
-
-  // Admin: approve + kirim email
-  if (action === "approve") {
-    if (!isAdmin()) return json({ error: "Password salah" }, 401);
-    const row: any = await db
-      .prepare("SELECT * FROM waitlist WHERE id = ?")
-      .bind(body.id)
-      .first();
-    if (!row) return json({ error: "Data tidak ada" }, 404);
-
-    const code = row.code || makeCode();
-    await db
-      .prepare("UPDATE waitlist SET status = 'Approved', code = ? WHERE id = ?")
-      .bind(code, row.id)
-      .run();
-
-    let emailSent = false;
-    try {
-      const r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "Hexagonal <onboarding@resend.dev>",
-          to: [row.email],
-          subject: "Kode akses Hexagonal Testnet",
-          html: `<p>Kode akses lo:</p><h2>${code}</h2><p>Masukin kode ini bareng email lo di halaman "Sudah punya kode akses?".</p>`,
-        }),
-      });
-      emailSent = r.ok;
-    } catch {}
-    return json({ ok: true, code, emailSent });
-  }
-
-  // User: cek kode
-  if (action === "unlock") {
-    const email = String(body.email || "").trim().toLowerCase();
-    const code = String(body.code || "").trim().toUpperCase();
-    const row = await db
-      .prepare(
-        "SELECT id FROM waitlist WHERE email = ? AND code = ? AND status = 'Approved'"
-      )
-      .bind(email, code)
-      .first();
-    return row ? json({ ok: true }) : json({ error: "Email atau kode salah" }, 401);
-  }
-
-  return json({ error: "Not found" }, 404);
-  }
+}
