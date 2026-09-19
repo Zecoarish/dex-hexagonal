@@ -467,7 +467,7 @@ export default function HexagonalTrade() {
                   type="number"
                   value={tradeAmount}
                   onChange={(e) => setTradeAmount(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20",
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg p-2.5 text-[13px] font-mono text-white focus:outline-none focus:border-white/20"
                 />
               </div>
             </div>
