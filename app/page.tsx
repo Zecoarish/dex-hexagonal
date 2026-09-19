@@ -1,5 +1,5 @@
 'use client';
-
+import TradeApp from "./components/TradeApp";
 import React, { useState, useEffect } from 'react';
 import { HexagonalLogo } from './components/HexagonalLogo';
 import { usePersistentAuth } from './hooks/usePersistentAuth';
