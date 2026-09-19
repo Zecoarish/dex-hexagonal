@@ -113,7 +113,7 @@ export function usePersistentAuth() {
       code: string
     ) => {
       const res = await fetch(
-        "/api/auth?action=login",
+        "/api/auth/login",
         {
           method: "POST",
           headers: {
