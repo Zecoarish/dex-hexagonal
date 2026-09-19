@@ -1,47 +1,39 @@
-'use client';
+"use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from "react";
 
-interface TradingViewWidgetProps {
-  symbol?: string;
-}
-
-export default function TradingViewWidget({ symbol = 'BTCUSDT' }: TradingViewWidgetProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+function TradingViewWidget({ symbol = "BINANCE:BTCUSDT.P" }: { symbol?: string }) {
+  const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.type = 'text/javascript';
+    const el = container.current;
+    if (!el) return;
+    el.innerHTML = "";
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
     script.async = true;
     script.innerHTML = JSON.stringify({
       autosize: true,
-      symbol: `BINANCE:${symbol}`,
-      interval: '15',
-      timezone: 'Etc/UTC',
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      enable_publishing: false,
-      backgroundColor: '#0B0F14',
-      gridColor: 'rgba(31, 41, 55, 0.5)',
-      hide_top_toolbar: false,
-      hide_legend: false,
+      symbol,
+      interval: "5",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      backgroundColor: "#0c0d0f",
+      hide_side_toolbar: true,
+      allow_symbol_change: false,
       save_image: false,
-      calendar: false,
-      hide_volume: false,
-      support_host: 'https://www.tradingview.com'
+      support_host: "https://www.tradingview.com",
     });
-
-    containerRef.current.appendChild(script);
+    el.appendChild(script);
+    return () => {
+      el.innerHTML = "";
+    };
   }, [symbol]);
 
-  return (
-    <div className="tradingview-widget-container h-full w-full" ref={containerRef}>
-      <div className="tradingview-widget-container__widget h-full w-full"></div>
-    </div>
-  );
+  return <div ref={container} style={{ height: "100%", width: "100%" }} />;
 }
+
+export default memo(TradingViewWidget);
