@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
 
-const BTC_USD_FEED = "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43";
+const BTC_USD_FEED = "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43" as const;
 const AGGREGATOR_ABI = [
   {
     inputs: [],
