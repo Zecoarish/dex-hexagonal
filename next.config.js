@@ -1,4 +1,4 @@
-/** @type {import('next').NextPage} */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
   images: {
