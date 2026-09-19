@@ -76,7 +76,7 @@ export function usePersistentAuth() {
     async () => {
       try {
         const res = await fetch(
-          "/api/auth?action=session",
+          "/api/auth/session",
           {
             cache: "no-store",
             credentials: "include",
@@ -154,7 +154,7 @@ export function usePersistentAuth() {
     async () => {
       try {
         await fetch(
-          "/api/auth?action=logout",
+          "/api/auth/logout",
           {
             method: "POST",
             credentials: "include",
