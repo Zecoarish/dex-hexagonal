@@ -7,6 +7,7 @@ type WaitlistUser = {
   email: string;
   status: string;
   created_at: string;
+  access_code?: string | null;
 };
 
 export default function AdminPage() {
@@ -15,7 +16,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
-  const [lastCode, setLastCode] = useState<{ email: string; code: string } | null>(null);
 
   async function loadWaitlist() {
     if (!key) return;
@@ -63,11 +63,6 @@ export default function AdminPage() {
 
       if (!res.ok) {
         throw new Error(data.error || "Action failed.");
-      }
-
-      if (decision === "approve" && data.code) {
-        const user = users.find((u) => u.id === id);
-        setLastCode({ email: user?.email || "", code: data.code });
       }
 
       await loadWaitlist();
@@ -128,13 +123,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {lastCode && (
-          <div className="mb-6 bg-green-500/10 border border-green-500/20 text-green-400 rounded-xl p-4 text-sm">
-            Approved <span className="font-semibold">{lastCode.email}</span> — access code:{" "}
-            <span className="font-mono font-bold">{lastCode.code}</span>
-          </div>
-        )}
-
         <div className="bg-[#121820] border border-white/10 rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-white/10">
             <h2 className="font-semibold">Waitlist</h2>
@@ -157,6 +145,12 @@ export default function AdminPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {user.access_code && (
+                      <span className="text-xs font-mono px-2 py-1 rounded bg-white/10 text-white">
+                        {user.access_code}
+                      </span>
+                    )}
+
                     <span
                       className={`text-xs px-3 py-1 rounded-full ${
                         user.status === "approved"
@@ -196,4 +190,4 @@ export default function AdminPage() {
       </div>
     </main>
   );
-}
+                                                        }
