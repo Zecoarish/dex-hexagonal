@@ -8,6 +8,7 @@ type Props = {
   positions: Position[];
   history: Trade[];
   prices: Prices;
+  balance: number;
   onClose: (id: number) => void;
   onReverse: (id: number) => void;
   onEdit: (id: number, tp: number | null, sl: number | null) => string | null;
@@ -31,12 +32,14 @@ function Cell({ k, v, cls = "" }: { k: string; v: string; cls?: string }) {
 function PositionCard({
   p,
   mark,
+  balance,
   onClose,
   onReverse,
   onEdit,
 }: {
   p: Position;
   mark: number | null;
+  balance: number;
   onClose: (id: number) => void;
   onReverse: (id: number) => void;
   onEdit: (id: number, tp: number | null, sl: number | null) => string | null;
@@ -71,6 +74,9 @@ function PositionCard({
           >
             {p.side} {Math.round(p.lev * 10) / 10}x
           </span>
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-400">
+            {p.marginMode === "CROSS" ? "Cross" : "Isolated"}
+          </span>
         </div>
         <div className="text-right">
           <p className={`font-mono text-[14px] font-semibold tabular-nums ${profit ? G : R}`}>
@@ -85,11 +91,11 @@ function PositionCard({
       </div>
 
       <div className="grid grid-cols-3 gap-y-2.5 gap-x-2 mb-3">
-        <Cell k="Ukuran" v={`$${fmt(p.qty * p.entry)}`} />
+        <Cell k="Size" v={`$${fmt(p.qty * p.entry)}`} />
         <Cell k="Margin" v={`$${fmt(p.margin)}`} />
-        <Cell k="Harga masuk" v={fmt(p.entry, d)} />
-        <Cell k="Harga mark" v={fmt(price, d)} />
-        <Cell k="Likuidasi" v={fmt(liqPrice(p), d)} cls="text-[#facc15]" />
+        <Cell k="Entry Price" v={fmt(p.entry, d)} />
+        <Cell k="Mark Price" v={fmt(price, d)} />
+        <Cell k="Liquidation" v={fmt(liqPrice(p, balance), d)} cls="text-[#facc15]" />
         <Cell k="TP / SL" v={`${p.tp ? fmt(p.tp, d) : "—"} / ${p.sl ? fmt(p.sl, d) : "—"}`} />
       </div>
 
@@ -111,7 +117,7 @@ function PositionCard({
             <input
               type="number"
               inputMode="decimal"
-              placeholder="TP harga"
+              placeholder="TP price"
               value={tp}
               onChange={(e) => setTp(e.target.value)}
               className={field}
@@ -119,7 +125,7 @@ function PositionCard({
             <input
               type="number"
               inputMode="decimal"
-              placeholder="SL harga"
+              placeholder="SL price"
               value={sl}
               onChange={(e) => setSl(e.target.value)}
               className={field}
@@ -127,7 +133,7 @@ function PositionCard({
           </div>
           {err && <p className="text-[11px] text-[#f87171]">{err}</p>}
           <button onClick={save} className="w-full text-[12px] py-2 rounded-md bg-white text-black font-semibold">
-            Simpan
+            Save
           </button>
         </div>
       )}
@@ -135,7 +141,7 @@ function PositionCard({
   );
 }
 
-export default function PositionsPanel({ positions, history, prices, onClose, onReverse, onEdit }: Props) {
+export default function PositionsPanel({ positions, history, prices, balance, onClose, onReverse, onEdit }: Props) {
   const [tab, setTab] = useState<"pos" | "hist">("pos");
 
   const tabCls = (t: string) =>
@@ -162,6 +168,7 @@ export default function PositionsPanel({ positions, history, prices, onClose, on
                 key={p.id}
                 p={p}
                 mark={prices[p.pair]?.price ?? null}
+                balance={balance}
                 onClose={onClose}
                 onReverse={onReverse}
                 onEdit={onEdit}
@@ -169,7 +176,7 @@ export default function PositionsPanel({ positions, history, prices, onClose, on
             ))}
           </div>
         ) : (
-          <p className="text-[12px] text-zinc-500 text-center py-6">Belum ada posisi terbuka.</p>
+          <p className="text-[12px] text-zinc-500 text-center py-6">No open positions yet.</p>
         )
       ) : history.length ? (
         <div>
@@ -196,8 +203,8 @@ export default function PositionsPanel({ positions, history, prices, onClose, on
           ))}
         </div>
       ) : (
-        <p className="text-[12px] text-zinc-500 text-center py-6">Belum ada riwayat trade.</p>
+        <p className="text-[12px] text-zinc-500 text-center py-6">No trade history yet.</p>
       )}
     </div>
   );
-    }
+          }
