@@ -36,6 +36,9 @@ export type Trade = {
   exit: number;
   pnl: number;
   reason: string;
+  margin?: number;
+  lev?: number;
+  closedAt?: number;
 };
 
 export type Acct = { balance: number; positions: Position[]; history: Trade[] };
@@ -95,6 +98,9 @@ export function settle(a: Acct, id: number, exit: number, reason: string): Acct 
     exit,
     pnl,
     reason,
+    margin: p.margin,
+    lev: p.lev,
+    closedAt: Date.now(),
   };
   return {
     balance: a.balance + p.margin + pnl,
