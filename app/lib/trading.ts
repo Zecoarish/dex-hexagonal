@@ -1,4 +1,5 @@
 export type Side = "LONG" | "SHORT";
+export type MarginMode = "CROSS" | "ISOLATED";
 
 export type Pair = { name: string; tv: string; maxLev: number; decimals: number };
 
@@ -24,6 +25,7 @@ export type Position = {
   lev: number;
   tp: number | null;
   sl: number | null;
+  marginMode: MarginMode;
 };
 
 export type Trade = {
@@ -44,6 +46,7 @@ export type OpenOrder = {
   lev: number;
   tp: number | null;
   sl: number | null;
+  marginMode: MarginMode;
 };
 
 export const START_BALANCE = 10000;
@@ -57,13 +60,28 @@ export const decOf = (name: string) => PAIRS.find((p) => p.name === name)?.decim
 export const pnlOf = (p: Position, mark: number) =>
   (mark - p.entry) * p.qty * (p.side === "LONG" ? 1 : -1);
 
-export const liqPrice = (p: Position) => {
-  const m = p.margin / (p.qty * p.entry);
+// freeBalance is only used to widen the liquidation buffer for CROSS positions,
+// which draw on the account's free balance in addition to their own margin.
+export const liqPrice = (p: Position, freeBalance = 0) => {
+  const buffer = p.marginMode === "CROSS" ? Math.max(freeBalance, 0) : 0;
+  const notional = p.qty * p.entry;
+  const m = notional > 0 ? Math.min((p.margin + buffer) / notional, 0.99) : 0;
   return p.side === "LONG" ? p.entry * (1 - m + MMR) : p.entry * (1 + m - MMR);
 };
 
-export const estLiq = (side: Side, price: number, lev: number) =>
-  side === "LONG" ? price * (1 - 1 / lev + MMR) : price * (1 + 1 / lev - MMR);
+export const estLiq = (
+  side: Side,
+  price: number,
+  lev: number,
+  margin = 0,
+  freeBalance = 0,
+  mode: MarginMode = "ISOLATED"
+) => {
+  const notional = margin * lev;
+  const buffer = mode === "CROSS" ? Math.max(freeBalance, 0) : 0;
+  const m = notional > 0 ? Math.min((margin + buffer) / notional, 0.99) : 1 / lev;
+  return side === "LONG" ? price * (1 - m + MMR) : price * (1 + m - MMR);
+};
 
 export function settle(a: Acct, id: number, exit: number, reason: string): Acct {
   const p = a.positions.find((x) => x.id === id);
@@ -83,4 +101,4 @@ export function settle(a: Acct, id: number, exit: number, reason: string): Acct 
     positions: a.positions.filter((x) => x.id !== id),
     history: [trade, ...a.history].slice(0, 30),
   };
-  }
+}
