@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { OpenOrder, Pair, Position, Side, estLiq, fmt } from "../lib/trading";
+import { MarginMode, OpenOrder, Pair, Position, Side, estLiq, fmt } from "../lib/trading";
 
 type Props = {
   pair: Pair;
@@ -28,6 +28,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
   const [side, setSide] = useState<Side>("LONG");
   const [lev, setLev] = useState(10);
   const [margin, setMargin] = useState("100");
+  const [marginMode, setMarginMode] = useState<MarginMode>("ISOLATED");
   const [tp, setTp] = useState("");
   const [sl, setSl] = useState("");
   const [err, setErr] = useState("");
@@ -35,7 +36,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
   const isLong = side === "LONG";
   const L = Math.min(lev, pair.maxLev);
   const m = Number(margin) || 0;
-  const liq = mark ? estLiq(side, mark, L) : null;
+  const liq = mark ? estLiq(side, mark, L, m, balance, marginMode) : null;
   const blocked = !!existing && existing.side !== side;
 
   const roe = (v: string) => {
@@ -53,6 +54,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
       lev: L,
       tp: tp ? Number(tp) : null,
       sl: sl ? Number(sl) : null,
+      marginMode,
     });
     setErr(e ?? "");
     if (!e) {
@@ -86,6 +88,30 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
 
       <div>
         <div className="flex justify-between mb-2">
+          <span className="text-[11px] text-zinc-500">Margin Mode</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1 bg-black/40 rounded-lg p-1">
+          {(["ISOLATED", "CROSS"] as MarginMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setMarginMode(mode)}
+              className={`py-1.5 rounded-md text-[12px] font-medium transition ${
+                marginMode === mode ? "bg-white text-black" : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              {mode === "ISOLATED" ? "Isolated" : "Cross"}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-zinc-500 mt-1.5">
+          {marginMode === "ISOLATED"
+            ? "Risk is limited to the margin you allocate to this position."
+            : "Your available balance backs this position, pushing the liquidation price further away."}
+        </p>
+      </div>
+
+      <div>
+        <div className="flex justify-between mb-2">
           <span className="text-[11px] text-zinc-500">Leverage</span>
           <span className="text-[12px] font-mono font-semibold">{L}x</span>
         </div>
@@ -109,7 +135,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
       <div>
         <div className="flex justify-between mb-1.5">
           <label className="text-[11px] text-zinc-500">Margin (USD)</label>
-          <span className="text-[11px] text-zinc-500">Tersedia ${fmt(balance)}</span>
+          <span className="text-[11px] text-zinc-500">Available ${fmt(balance)}</span>
         </div>
         <input
           type="number"
@@ -137,7 +163,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
           <input
             type="number"
             inputMode="decimal"
-            placeholder="Harga"
+            placeholder="Price"
             value={tp}
             onChange={(e) => setTp(e.target.value)}
             className={field}
@@ -154,7 +180,7 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
           <input
             type="number"
             inputMode="decimal"
-            placeholder="Harga"
+            placeholder="Price"
             value={sl}
             onChange={(e) => setSl(e.target.value)}
             className={field}
@@ -169,14 +195,14 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
       </div>
 
       <div className="space-y-1.5 text-[12px] border-t border-white/[0.06] pt-3">
-        <Row k="Ukuran posisi" v={`$${fmt(m * L)}`} />
-        <Row k="Harga masuk (market)" v={mark ? `$${fmt(mark, pair.decimals)}` : "—"} />
-        <Row k="Est. likuidasi" v={liq ? `$${fmt(liq, pair.decimals)}` : "—"} />
+        <Row k="Position Size" v={`$${fmt(m * L)}`} />
+        <Row k="Entry Price (Market)" v={mark ? `$${fmt(mark, pair.decimals)}` : "—"} />
+        <Row k="Est. Liquidation" v={liq ? `$${fmt(liq, pair.decimals)}` : "—"} />
       </div>
 
       {blocked && existing && (
         <p className="text-[11px] text-[#facc15]">
-          Lo lagi pegang {existing.side} {pair.name}. Close atau Reverse dulu di bagian Positions.
+          You already hold {existing.side} {pair.name}. Close or Reverse it first in Positions.
         </p>
       )}
       {err && <p className="text-[11px] text-[#f87171]">{err}</p>}
@@ -188,9 +214,9 @@ export default function OrderPanel({ pair, mark, balance, existing, onOpen }: Pr
           isLong ? "bg-[#22c55e] hover:bg-[#16a34a]" : "bg-[#ef4444] hover:bg-[#dc2626]"
         }`}
       >
-        {existing && existing.side === side ? "Tambah " : "Open "}
+        {existing && existing.side === side ? "Add " : "Open "}
         {isLong ? "Long" : "Short"} {pair.name}
       </button>
     </div>
   );
-      }
+              }
