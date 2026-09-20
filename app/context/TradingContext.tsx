@@ -3,6 +3,13 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useLivePrices, Prices } from "../hooks/useLivePrices";
 import {
+  EquityPoint,
+  SAMPLE_EVERY_MS,
+  compactHistory,
+  loadHistory,
+  saveHistory,
+} from "../lib/equityHistory";
+import {
   Acct,
   OpenOrder,
   Position,
@@ -13,11 +20,10 @@ import {
   settle,
 } from "../lib/trading";
 
-const KEY = "hexagonal_demo_v1";
+const LEGACY_KEY = "hexagonal_demo_v1";
 const EMPTY: Acct = { balance: START_BALANCE, positions: [], history: [] };
-const MAX_EQUITY_POINTS = 200;
 
-export type EquityPoint = { t: number; equity: number };
+export type { EquityPoint };
 
 type Ctx = {
   prices: Prices;
@@ -38,7 +44,17 @@ type Ctx = {
 
 const TradingCtx = createContext<Ctx | null>(null);
 
-export function TradingProvider({ children }: { children: React.ReactNode }) {
+export function TradingProvider({
+  children,
+  userKey,
+}: {
+  children: React.ReactNode;
+  userKey: string;
+}) {
+  // Each account gets its own saved data.
+  const KEY = `${LEGACY_KEY}:${userKey.toLowerCase()}`;
+  const EQ_KEY = `${KEY}:equity`;
+
   const { prices, status } = useLivePrices();
   const [acct, setAcct] = useState<Acct>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -49,7 +65,16 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(KEY);
+      let raw = localStorage.getItem(KEY);
+      if (!raw) {
+        // one-time migration of the old shared save into the first account that logs in
+        const legacy = localStorage.getItem(LEGACY_KEY);
+        if (legacy) {
+          raw = legacy;
+          localStorage.setItem(KEY, legacy);
+          localStorage.removeItem(LEGACY_KEY);
+        }
+      }
       if (raw) {
         const a = JSON.parse(raw) as Acct;
         a.positions = a.positions.map((p) => ({ marginMode: "ISOLATED", ...p }));
@@ -57,7 +82,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         lastId.current = a.history[0]?.id ?? null;
       }
     } catch {}
+    setEquityHistory(loadHistory(EQ_KEY));
     setLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -98,13 +125,32 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const upnl = acct.positions.reduce((s, p) => s + pnlOf(p, prices[p.pair]?.price ?? p.entry), 0);
   const equity = acct.balance + used + upnl;
 
+  // Long-term equity log for the portfolio chart: 1 sample / minute, compacted as it ages.
+  const equityRef = useRef(equity);
+  equityRef.current = equity;
+
   useEffect(() => {
     if (!loaded) return;
-    const now = Date.now();
-    if (now - lastSample.current < 1000) return;
-    lastSample.current = now;
-    setEquityHistory((h) => [...h, { t: now, equity }].slice(-MAX_EQUITY_POINTS));
-  }, [equity, loaded]);
+    const sample = () => {
+      const now = Date.now();
+      if (now - lastSample.current < SAMPLE_EVERY_MS - 1000) return;
+      lastSample.current = now;
+      setEquityHistory((h) => {
+        const next = compactHistory([...h, { t: now, equity: Number(equityRef.current.toFixed(2)) }], now);
+        saveHistory(EQ_KEY, next);
+        return next;
+      });
+    };
+    sample();
+    const id = setInterval(sample, SAMPLE_EVERY_MS);
+    const onHide = () => document.visibilityState === "hidden" && sample();
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   const openPosition = (pair: string, mark: number | null, o: OpenOrder): string | null => {
     if (mark === null) return "Price feed not ready yet, please wait a moment.";
@@ -208,6 +254,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     if (window.confirm("Reset demo balance to $10,000 and close all positions?")) {
       setAcct(EMPTY);
       setEquityHistory([]);
+      saveHistory(EQ_KEY, []);
+      lastSample.current = 0;
     }
   };
 
@@ -239,4 +287,4 @@ export function useTrading() {
   const ctx = useContext(TradingCtx);
   if (!ctx) throw new Error("useTrading must be used inside <TradingProvider>");
   return ctx;
-                          }
+          }
