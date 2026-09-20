@@ -152,11 +152,13 @@ function AppHeader({
 }
 
 export default function TradePage() {
-  const { session, loginWithCode, logout, restoreServerSession } = usePersistentAuth();
+  const { session, login, register, logout, restoreServerSession } = usePersistentAuth();
 
-  const [mode, setMode] = useState<"access" | "waitlist">("access");
+  const [mode, setMode] = useState<"login" | "register" | "waitlist">("login");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("trade");
@@ -165,9 +167,17 @@ export default function TradePage() {
     void restoreServerSession();
   }, [restoreServerSession]);
 
+  // Old cached sessions stored a placeholder instead of the real email; wait for
+  // the server check to fill it in so each account gets its own data.
+  const emailKnown = !!session.email && session.email.includes("@");
+
+  if (session.isLoggedIn && !emailKnown) {
+    return <main className="min-h-screen bg-[#0B0F14]" />;
+  }
+
   if (session.isLoggedIn) {
     return (
-      <TradingProvider>
+      <TradingProvider key={session.email} userKey={session.email!}>
         <div className="min-h-screen bg-[#0B0F14] text-white">
           <AppHeader view={view} setView={setView} logout={logout} />
           {view === "trade" ? <TradeApp /> : <PortfolioView />}
@@ -175,6 +185,16 @@ export default function TradePage() {
       </TradingProvider>
     );
   }
+
+  const inputCls =
+    "w-full bg-[#0B0F14] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#3B82F6]";
+
+  const switchMode = (m: "login" | "register" | "waitlist") => {
+    setMode(m);
+    setMessage("");
+    setPassword("");
+    setConfirm("");
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -199,8 +219,16 @@ export default function TradePage() {
         }
 
         setMessage("Request submitted. Please wait for admin approval.");
+      } else if (mode === "register") {
+        if (password !== confirm) {
+          throw new Error("Passwords do not match.");
+        }
+        await register(email, code, password);
+        setPassword("");
+        setConfirm("");
       } else {
-        await loginWithCode(email, code);
+        await login(email, password);
+        setPassword("");
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Something went wrong.");
@@ -218,38 +246,39 @@ export default function TradePage() {
 
         <div className="bg-[#121820] border border-white/[0.08] rounded-2xl p-6 sm:p-8 shadow-2xl">
           <div className="flex gap-1 p-1 bg-black/30 rounded-xl mb-6">
-            <button
-              onClick={() => {
-                setMode("access");
-                setMessage("");
-              }}
-              className={`flex-1 py-2 rounded-lg text-sm ${
-                mode === "access" ? "bg-white text-black font-semibold" : "text-zinc-400"
-              }`}
-            >
-              Access DEX
-            </button>
-
-            <button
-              onClick={() => {
-                setMode("waitlist");
-                setMessage("");
-              }}
-              className={`flex-1 py-2 rounded-lg text-sm ${
-                mode === "waitlist" ? "bg-white text-black font-semibold" : "text-zinc-400"
-              }`}
-            >
-              Join Waitlist
-            </button>
+            {(
+              [
+                ["login", "Log In"],
+                ["register", "Register"],
+                ["waitlist", "Waitlist"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => switchMode(key)}
+                className={`flex-1 py-2 rounded-lg text-sm ${
+                  mode === key ? "bg-white text-black font-semibold" : "text-zinc-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <h1 className="text-2xl font-bold">
-            {mode === "access" ? "Welcome to HEXAGONAL" : "Join the Waitlist"}
+            {mode === "login"
+              ? "Welcome back"
+              : mode === "register"
+              ? "Create your account"
+              : "Join the Waitlist"}
           </h1>
 
           <p className="text-sm text-zinc-400 mt-2 mb-6">
-            {mode === "access"
-              ? "Enter your email and approved access code."
+            {mode === "login"
+              ? "Log in with your email and password."
+              : mode === "register"
+              ? "Use the one-time access code from the admin and set a password. You'll only need your email and password next time."
               : "Join the waitlist. Your request will be reviewed before access is granted."}
           </p>
 
@@ -257,20 +286,47 @@ export default function TradePage() {
             <input
               type="email"
               required
+              autoComplete="email"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#0B0F14] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#3B82F6]"
+              className={inputCls}
             />
 
-            {mode === "access" && (
+            {mode === "register" && (
               <input
                 type="text"
                 required
-                placeholder="HEX-XXXX-XXXX"
+                autoComplete="off"
+                placeholder="One-time access code"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                className="w-full bg-[#0B0F14] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-[#3B82F6]"
+                className={`${inputCls} font-mono`}
+              />
+            )}
+
+            {mode !== "waitlist" && (
+              <input
+                type="password"
+                required
+                minLength={mode === "register" ? 8 : undefined}
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
+                placeholder={mode === "register" ? "Create password (min. 8 characters)" : "Password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputCls}
+              />
+            )}
+
+            {mode === "register" && (
+              <input
+                type="password"
+                required
+                autoComplete="new-password"
+                placeholder="Confirm password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className={inputCls}
               />
             )}
 
@@ -278,7 +334,13 @@ export default function TradePage() {
               disabled={busy}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#8B5CF6] font-bold disabled:opacity-50"
             >
-              {busy ? "Processing..." : mode === "access" ? "Enter DEX" : "Request Access"}
+              {busy
+                ? "Processing..."
+                : mode === "login"
+                ? "Log In"
+                : mode === "register"
+                ? "Create Account"
+                : "Request Access"}
             </button>
           </form>
 
