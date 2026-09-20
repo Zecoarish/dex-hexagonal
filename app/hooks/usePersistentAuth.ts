@@ -34,17 +34,12 @@ async function readJson(res: Response) {
 }
 
 export function usePersistentAuth() {
-  const [session, setSession] =
-    useState<UserSession>(DEFAULT_SESSION);
-
-  const [hydrated, setHydrated] =
-    useState(false);
+  const [session, setSession] = useState<UserSession>(DEFAULT_SESSION);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(
-        "hexagonal_dex_session"
-      );
+      const saved = localStorage.getItem("hexagonal_dex_session");
 
       if (saved) {
         setSession(JSON.parse(saved));
@@ -60,89 +55,68 @@ export function usePersistentAuth() {
     if (!hydrated) return;
 
     try {
-      localStorage.setItem(
-        "hexagonal_dex_session",
-        JSON.stringify(session)
-      );
+      localStorage.setItem("hexagonal_dex_session", JSON.stringify(session));
     } catch (error) {
-      console.error(
-        "Failed to save session:",
-        error
-      );
+      console.error("Failed to save session:", error);
     }
   }, [session, hydrated]);
 
-  const restoreServerSession = useCallback(
-    async () => {
-      try {
-        const res = await fetch(
-          "/api/auth/session",
-          {
-            cache: "no-store",
-            credentials: "include",
-          }
-        );
-
-        const data = await readJson(res);
-
-        if (!res.ok || !data.authenticated) {
-          setSession(DEFAULT_SESSION);
-          return false;
-        }
-
-        setSession((prev) => ({
-          ...prev,
-          isLoggedIn: true,
-          address:
-            data.emailMasked || prev.address,
-          email: data.emailMasked,
-        }));
-
-        return true;
-      } catch {
-        setSession(DEFAULT_SESSION);
-        return false;
-      }
-    },
-    []
-  );
-
-  const loginWithCode = useCallback(
-    async (
-      email: string,
-      code: string
-    ) => {
-      const res = await fetch(
-        "/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            email,
-            code,
-          }),
-        }
-      );
+  const restoreServerSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
 
       const data = await readJson(res);
 
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-            "Invalid access code."
-        );
+      if (!res.ok || !data.authenticated) {
+        setSession(DEFAULT_SESSION);
+        return false;
       }
 
       setSession((prev) => ({
         ...prev,
         isLoggedIn: true,
-        address:
-          data.emailMasked || email,
-        email:
-          data.emailMasked || email,
+        address: data.email || prev.address,
+        email: data.email || prev.email,
+      }));
+
+      return true;
+    } catch {
+      setSession(DEFAULT_SESSION);
+      return false;
+    }
+  }, []);
+
+  const authRequest = useCallback(
+    async (
+      path: "login" | "register",
+      payload: Record<string, string>,
+      fallbackError: string
+    ) => {
+      const res = await fetch(`/api/auth/${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      const data = await readJson(res);
+
+      if (!res.ok) {
+        throw new Error(data.error || fallbackError);
+      }
+
+      const email = String(data.email || payload.email);
+
+      setSession((prev) => ({
+        ...prev,
+        isLoggedIn: true,
+        address: email,
+        email,
       }));
 
       return true;
@@ -150,45 +124,49 @@ export function usePersistentAuth() {
     []
   );
 
-  const logout = useCallback(
-    async () => {
-      try {
-        await fetch(
-          "/api/auth/logout",
-          {
-            method: "POST",
-            credentials: "include",
-          }
-        );
-      } catch {}
-
-      setSession(DEFAULT_SESSION);
-
-      try {
-        localStorage.removeItem(
-          "hexagonal_dex_session"
-        );
-      } catch {}
-    },
-    []
+  // Returning users: email + password only.
+  const login = useCallback(
+    (email: string, password: string) =>
+      authRequest("login", { email, password }, "Invalid email or password."),
+    [authRequest]
   );
 
-  const updateBalance = useCallback(
-    (newBalance: number) => {
-      setSession((prev) => ({
-        ...prev,
-        demoBalance: newBalance,
-      }));
-    },
-    []
+  // First time only: email + one-time access code + a new password.
+  const register = useCallback(
+    (email: string, code: string, password: string) =>
+      authRequest("register", { email, code, password }, "Registration failed."),
+    [authRequest]
   );
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {}
+
+    setSession(DEFAULT_SESSION);
+
+    try {
+      localStorage.removeItem("hexagonal_dex_session");
+    } catch {}
+  }, []);
+
+  const updateBalance = useCallback((newBalance: number) => {
+    setSession((prev) => ({
+      ...prev,
+      demoBalance: newBalance,
+    }));
+  }, []);
 
   return {
     session,
-    loginWithCode,
+    login,
+    register,
     logout,
     updateBalance,
     restoreServerSession,
     setSession,
   };
-    }
+}
