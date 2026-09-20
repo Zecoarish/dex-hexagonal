@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { Share2 } from "lucide-react";
+import ShareCard, { ShareData } from "./ShareCard";
 import { Position, Trade, decOf, fmt, liqPrice, pnlOf } from "../lib/trading";
 import type { Prices } from "../hooks/useLivePrices";
 
@@ -36,6 +38,7 @@ function PositionCard({
   onClose,
   onReverse,
   onEdit,
+  onShare,
 }: {
   p: Position;
   mark: number | null;
@@ -43,6 +46,7 @@ function PositionCard({
   onClose: (id: number) => void;
   onReverse: (id: number) => void;
   onEdit: (id: number, tp: number | null, sl: number | null) => string | null;
+  onShare: (d: ShareData) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [tp, setTp] = useState(p.tp ? String(p.tp) : "");
@@ -99,7 +103,7 @@ function PositionCard({
         <Cell k="TP / SL" v={`${p.tp ? fmt(p.tp, d) : "—"} / ${p.sl ? fmt(p.sl, d) : "—"}`} />
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <button onClick={() => setOpen(!open)} className={btn}>
           TP/SL
         </button>
@@ -108,6 +112,25 @@ function PositionCard({
         </button>
         <button onClick={() => onClose(p.id)} className={btn}>
           Close
+        </button>
+        <button
+          onClick={() =>
+            onShare({
+              pair: p.pair,
+              side: p.side,
+              lev: p.lev,
+              pnl,
+              roe,
+              entry: p.entry,
+              mark: price,
+              closed: false,
+            })
+          }
+          aria-label="Share PnL card"
+          className={`${btn} flex items-center justify-center gap-1`}
+        >
+          <Share2 size={12} />
+          Share
         </button>
       </div>
 
@@ -143,6 +166,7 @@ function PositionCard({
 
 export default function PositionsPanel({ positions, history, prices, balance, onClose, onReverse, onEdit }: Props) {
   const [tab, setTab] = useState<"pos" | "hist">("pos");
+  const [share, setShare] = useState<ShareData | null>(null);
 
   const tabCls = (t: string) =>
     `pb-2 text-[13px] font-medium border-b-2 -mb-px ${
@@ -172,6 +196,7 @@ export default function PositionsPanel({ positions, history, prices, balance, on
                 onClose={onClose}
                 onReverse={onReverse}
                 onEdit={onEdit}
+                onShare={setShare}
               />
             ))}
           </div>
@@ -195,16 +220,38 @@ export default function PositionsPanel({ positions, history, prices, balance, on
                   {fmt(h.entry, decOf(h.pair))} → {fmt(h.exit, decOf(h.pair))}
                 </p>
               </div>
-              <span className={`font-mono font-semibold ${h.pnl >= 0 ? G : R}`}>
-                {h.pnl >= 0 ? "+" : ""}
-                {fmt(h.pnl)}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`font-mono font-semibold ${h.pnl >= 0 ? G : R}`}>
+                  {h.pnl >= 0 ? "+" : ""}
+                  {fmt(h.pnl)}
+                </span>
+                <button
+                  aria-label="Share PnL card"
+                  onClick={() =>
+                    setShare({
+                      pair: h.pair,
+                      side: h.side,
+                      lev: h.lev ?? 1,
+                      pnl: h.pnl,
+                      roe: h.margin ? (h.pnl / h.margin) * 100 : null,
+                      entry: h.entry,
+                      mark: h.exit,
+                      closed: true,
+                    })
+                  }
+                  className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/[0.08]"
+                >
+                  <Share2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       ) : (
         <p className="text-[12px] text-zinc-500 text-center py-6">No trade history yet.</p>
       )}
+
+      {share && <ShareCard data={share} onClose={() => setShare(null)} />}
     </div>
   );
-          }
+            }
