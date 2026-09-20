@@ -34,10 +34,26 @@ export async function GET(
     }
 
     if (action === "waitlist") {
+      await DB.prepare(`
+        CREATE TABLE IF NOT EXISTS access_codes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL,
+          code TEXT NOT NULL UNIQUE,
+          used INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run();
+
       const result = await DB.prepare(`
-        SELECT id, email, status, created_at
-        FROM waitlist_requests
-        ORDER BY id DESC
+        SELECT
+          w.id,
+          w.email,
+          w.status,
+          w.created_at,
+          ac.code AS access_code
+        FROM waitlist_requests w
+        LEFT JOIN access_codes ac ON ac.email = w.email
+        ORDER BY w.id DESC
       `).all();
 
       return json({ success: true, data: result.results });
@@ -102,6 +118,16 @@ export async function POST(
         )
       `).run();
 
+      const existing = await DB.prepare(
+        `SELECT code FROM access_codes WHERE email = ? LIMIT 1`
+      )
+        .bind(row.email)
+        .first<{ code: string }>();
+
+      if (existing) {
+        return json({ success: true, status: "approved", code: existing.code });
+      }
+
       let code = generateCode();
       let inserted = false;
       for (let i = 0; i < 5 && !inserted; i++) {
@@ -133,4 +159,4 @@ export async function POST(
     console.error("ADMIN ERROR:", error);
     return json({ error: "Internal server error." }, 500);
   }
-}
+          }
